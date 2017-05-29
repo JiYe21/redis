@@ -94,7 +94,7 @@ int clusterLoadConfig(char *filename) {
     int maxline, j;
 
     if (fp == NULL) {
-        if (errno == ENOENT) {
+        if (errno == ENOENT) {//文件不存在
             return C_ERR;
         } else {
             serverLog(LL_WARNING,
