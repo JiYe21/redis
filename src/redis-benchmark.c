@@ -90,10 +90,10 @@ typedef struct _client {
     size_t written;         /* Bytes of 'obuf' already written */
     long long start;        /* Start time of a request */
     long long latency;      /* Request latency */
-    int pending;            /* Number of pending requests (replies to consume) */
+    int pending;            /* Number of pending requests (replies to consume) */ //每次发多少请求
     int prefix_pending;     /* If non-zero, number of pending prefix commands. Commands
                                such as auth and select are prefixed to the pipeline of
-                               benchmark commands and discarded after the first send. */
+                               benchmark commands and discarded after the first send. */  //处理正式请求之前 处理的命令
     int prefixlen;          /* Size in bytes of the pending prefix commands */
 } *client;
 
@@ -173,7 +173,7 @@ static void randomizeClientKey(client c) {
 static void clientDone(client c) {
     if (config.requests_finished == config.requests) {
         freeClient(c);
-        aeStop(config.el);
+        aeStop(config.el);//请求完成退出循环
         return;
     }
     if (config.keepalive) {
@@ -224,6 +224,7 @@ static void readHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
                 }
 
                 freeReplyObject(reply);
+				//去掉前缀命令
                 /* This is an OK for prefix commands such as auth and select.*/
                 if (c->prefix_pending > 0) {
                     c->prefix_pending--;

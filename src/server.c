@@ -1279,7 +1279,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     run_with_period(100) {
         if (server.cluster_enabled) clusterCron();
     }
-
+//из╠Ь 
     /* Run the Sentinel timer if we are in sentinel mode. */
     run_with_period(100) {
         if (server.sentinel_mode) sentinelTimer();
