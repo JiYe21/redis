@@ -95,7 +95,7 @@ void bioInit(void) {
     size_t stacksize;
     int j;
 
-    /* Initialization of state vars and objects */
+    /* Initialization of state vars and objects */ //创建两个线程，一个用于刷新缓存数据到硬盘
     for (j = 0; j < BIO_NUM_OPS; j++) {
         pthread_mutex_init(&bio_mutex[j],NULL);
         pthread_cond_init(&bio_condvar[j],NULL);

@@ -359,7 +359,7 @@ typedef long long mstime_t; /* millisecond time type. */
 
 /* Append only defines */
 #define AOF_FSYNC_NO 0
-#define AOF_FSYNC_ALWAYS 1
+#define AOF_FSYNC_ALWAYS 1 //主线程直接刷新数据到磁盘
 #define AOF_FSYNC_EVERYSEC 2
 #define CONFIG_DEFAULT_AOF_FSYNC AOF_FSYNC_EVERYSEC
 
@@ -805,7 +805,7 @@ struct redisServer {
     off_t aof_current_size;         /* AOF current size. */
     int aof_rewrite_scheduled;      /* Rewrite once BGSAVE terminates. */
     pid_t aof_child_pid;            /* PID if rewriting process */
-    list *aof_rewrite_buf_blocks;   /* Hold changes during an AOF rewrite. */
+    list *aof_rewrite_buf_blocks;   /* Hold changes during an AOF rewrite. */ //保存在aof rewrite过程中写入的命令请求
     sds aof_buf;      /* AOF buffer, written before entering the event loop */
     int aof_fd;       /* File descriptor of currently selected AOF file */
     int aof_selected_db; /* Currently selected DB in AOF */

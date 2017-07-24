@@ -170,6 +170,7 @@ void aofRewriteBufferAppend(unsigned char *s, unsigned long len) {
 /* Write the buffer (possibly composed of multiple blocks) into the specified
  * fd. If a short write or any other error happens -1 is returned,
  * otherwise the number of bytes written is returned. */
+ //子进程aof rewrite结束后，主进程将aof rewrite buf中数据写进文件
 ssize_t aofRewriteBufferWrite(int fd) {
     listNode *ln;
     listIter li;
@@ -284,6 +285,7 @@ int startAppendOnly(void) {
  * However if force is set to 1 we'll write regardless of the background
  * fsync. */
 #define AOF_WRITE_LOG_ERROR_RATE 30 /* Seconds between errors logging. */
+//将aof_buf中数据刷新到磁盘  1 每秒尝试一次刷新 2 loop 之前进行一次刷新
 void flushAppendOnlyFile(int force) {
     ssize_t nwritten;
     int sync_in_progress = 0;
@@ -430,8 +432,9 @@ void flushAppendOnlyFile(int force) {
         (server.aof_child_pid != -1 || server.rdb_child_pid != -1))
             return;
 
+
     /* Perform the fsync if needed. */
-    if (server.aof_fsync == AOF_FSYNC_ALWAYS) {
+    if (server.aof_fsync == AOF_FSYNC_ALWAYS) { //直接flush data to disk
         /* aof_fsync is defined as fdatasync() for Linux in order to avoid
          * flushing metadata. */
         latencyStartMonitor(latency);
@@ -441,7 +444,7 @@ void flushAppendOnlyFile(int force) {
         server.aof_last_fsync = server.unixtime;
     } else if ((server.aof_fsync == AOF_FSYNC_EVERYSEC &&
                 server.unixtime > server.aof_last_fsync)) {
-        if (!sync_in_progress) aof_background_fsync(server.aof_fd);
+        if (!sync_in_progress) aof_background_fsync(server.aof_fd);//后台线程flush data to disk
         server.aof_last_fsync = server.unixtime;
     }
 }
@@ -507,7 +510,7 @@ sds catAppendOnlyExpireAtCommand(sds buf, struct redisCommand *cmd, robj *key, r
     decrRefCount(argv[2]);
     return buf;
 }
-
+//将命令写入aof_buf中，待进入事件循环再写入文件,如果有子进程正在进行重写，将请求发给子进程
 void feedAppendOnlyFile(struct redisCommand *cmd, int dictid, robj **argv, int argc) {
     sds buf = sdsempty();
     robj *tmpargv[3];
@@ -552,6 +555,7 @@ void feedAppendOnlyFile(struct redisCommand *cmd, int dictid, robj **argv, int a
      * accumulate the differences between the child DB and the current one
      * in a buffer, so that when the child process will do its work we
      * can append the differences to the new append only file. */
+     //如果子进程正在进行aof write,将新请求写入aof rewrite buffer,设置事件回调发给子进程
     if (server.aof_child_pid != -1)
         aofRewriteBufferAppend((unsigned char*)buf,sdslen(buf));
 
@@ -1177,6 +1181,7 @@ werr:
 /* This event handler is called when the AOF rewriting child sends us a
  * single '!' char to signal we should stop sending buffer diffs. The
  * parent sends a '!' as well to acknowledge. */
+ //父子进程间读写终止确认
 void aofChildPipeReadable(aeEventLoop *el, int fd, void *privdata, int mask) {
     char byte;
     UNUSED(el);
@@ -1260,6 +1265,7 @@ void aofClosePipes(void) {
  *    finally will rename(2) the temp file in the actual file name.
  *    The the new file is reopened as the new append only file. Profit!
  */
+ //aof rewrite 1 收到bgrewriteaof请求  2 自动检测aof文件过大
 int rewriteAppendOnlyFileBackground(void) {
     pid_t childpid;
     long long start;
@@ -1416,6 +1422,7 @@ void backgroundRewriteDoneHandler(int exitcode, int bysignal) {
          * guarantee atomicity for this switch has already happened by then, so
          * we don't care what the outcome or duration of that close operation
          * is, as long as the file descriptor is released again. */
+         //rename临时文件为目标文件，如果目标文件存在并且打开，或者没有打开，rename都会导致原来文件unlink,导致服务阻塞
         if (server.aof_fd == -1) {
             /* AOF disabled */
 

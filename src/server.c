@@ -706,6 +706,7 @@ int incrementallyRehash(int dbid) {
  * memory pages are copied). The goal of this function is to update the ability
  * for dict.c to resize the hash tables accordingly to the fact we have o not
  * running childs. */
+ //如果有子进程aof/rdb，拒绝rehash
 void updateDictResizePolicy(void) {
     if (server.rdb_child_pid == -1 && server.aof_child_pid == -1)
         dictEnableResize();
@@ -1173,6 +1174,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
 
     /* Start a scheduled AOF rewrite if this was requested by the user while
      * a BGSAVE was in progress. */
+     //用户basave请求时，如果当时正在进行rdb，就延迟至此执行rewrite aof
     if (server.rdb_child_pid == -1 && server.aof_child_pid == -1 &&
         server.aof_rewrite_scheduled)
     {
@@ -1234,7 +1236,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
                 break;
             }
          }
-
+//自动触发aof重写
          /* Trigger an AOF rewrite if needed */
          if (server.rdb_child_pid == -1 &&
              server.aof_child_pid == -1 &&

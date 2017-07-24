@@ -136,9 +136,9 @@ typedef struct sentinelAddr {
 typedef struct instanceLink {
     int refcount;          /* Number of sentinelRedisInstance owners. */
     int disconnected;      /* Non-zero if we need to reconnect cc or pc. */
-    int pending_commands;  /* Number of commands sent waiting for a reply. */
-    redisAsyncContext *cc; /* Hiredis context for commands. */
-    redisAsyncContext *pc; /* Hiredis context for Pub / Sub. */
+    int pending_commands;  /* Number of commands sent waiting for a reply. */ //等待应答命令
+    redisAsyncContext *cc; /* Hiredis context for commands. */  //命令请求连接
+    redisAsyncContext *pc; /* Hiredis context for Pub / Sub. */  
     mstime_t cc_conn_time; /* cc connection time. */
     mstime_t pc_conn_time; /* pc connection time. */
     mstime_t pc_last_activity; /* Last time we received any message. */
@@ -148,7 +148,7 @@ typedef struct instanceLink {
                                  received after it) was sent. This field is
                                  set to 0 when a pong is received, and set again
                                  to the current time if the value is 0 and a new
-                                 ping is sent. */
+                                 ping is sent. */  //没有应答的ping发送时间
     mstime_t last_ping_time;  /* Time at which we sent the last ping. This is
                                  only used to avoid sending too many pings
                                  during failure. Idle time is computed using
@@ -157,16 +157,16 @@ typedef struct instanceLink {
                                  whatever the reply was. That's used to check
                                  if the link is idle and must be reconnected. */
     mstime_t last_reconn_time;  /* Last reconnection attempt performed when
-                                   the link was down. */
+                                   the link was down. */ //上次重连时间
 } instanceLink;
-
+//哨兵 实例
 typedef struct sentinelRedisInstance {
     int flags;      /* See SRI_... defines */
     char *name;     /* Master name from the point of view of this sentinel. */
     char *runid;    /* Run ID of this instance, or unique ID if is a Sentinel.*/
     uint64_t config_epoch;  /* Configuration epoch. */
     sentinelAddr *addr; /* Master host. */
-    instanceLink *link; /* Link to the instance, may be shared for Sentinels. */
+    instanceLink *link; /* Link to the instance, may be shared for Sentinels. */ //master/slave 连接信息
     mstime_t last_pub_time;   /* Last time we sent hello via Pub/Sub. */
     mstime_t last_hello_time; /* Only used if SRI_SENTINEL is set. Last time
                                  we received a hello from this Sentinel
@@ -189,7 +189,7 @@ typedef struct sentinelRedisInstance {
 
     /* Master specific. */
     dict *sentinels;    /* Other sentinels monitoring the same master. */  //master 其他哨兵
-    dict *slaves;       /* Slaves for this master instance. */  //master slave 实例
+    dict *slaves;       /* Slaves for this master instance. */  //与master连接的slave
     unsigned int quorum;/* Number of sentinels that need to agree on failure. */
     int parallel_syncs; /* How many slaves to reconfigure at same time. */
     char *auth_pass;    /* Password to use for AUTH against master & slaves. */
@@ -265,7 +265,7 @@ typedef struct redisAeEvents {
     redisAsyncContext *context;
     aeEventLoop *loop;
     int fd;
-    int reading, writing;
+    int reading, writing;  //事件标志
 } redisAeEvents;
 
 static void redisAeReadEvent(aeEventLoop *el, int fd, void *privdata, int mask) {
@@ -1111,7 +1111,7 @@ void instanceLinkConnectionError(const redisAsyncContext *c) {
         link->cc = NULL;
     link->disconnected = 1;
 }
-
+//连接回调
 /* Hiredis connection established / disconnected callbacks. We need them
  * just to cleanup our link state. */
 void sentinelLinkEstablishedCallback(const redisAsyncContext *c, int status) {
@@ -1875,6 +1875,7 @@ werr:
  * We don't check at all if the command was successfully transmitted
  * to the instance as if it fails Sentinel will detect the instance down,
  * will disconnect and reconnect the link and so forth. */
+//不用检测认证是否成功，如果失败sentinel 将探测该实例down
 void sentinelSendAuthIfNeeded(sentinelRedisInstance *ri, redisAsyncContext *c) {
     char *auth_pass = (ri->flags & SRI_MASTER) ? ri->auth_pass :
                                                  ri->master->auth_pass;
@@ -2258,7 +2259,7 @@ void sentinelInfoReplyCallback(redisAsyncContext *c, void *reply, void *privdata
 }
 
 /* Just discard the reply. We use this when we are not monitoring the return
- * value of the command but its effects directly. */
+ * value of the command but its effects directly. */ //忽略请求返回
 void sentinelDiscardReplyCallback(redisAsyncContext *c, void *reply, void *privdata) {
     instanceLink *link = c->data;
     UNUSED(reply);
@@ -2604,6 +2605,8 @@ void sentinelSendPeriodicCommands(sentinelRedisInstance *ri) {
     /* We ping instances every time the last received pong is older than
      * the configured 'down-after-milliseconds' time, but every second
      * anyway if 'down-after-milliseconds' is greater than 1 second. */
+     // 1 如果最后一次收到pong 间隔大于ping_period则发送ping
+     // 2 每2秒发送一次 publish hello 消息
     ping_period = ri->down_after_period;
     if (ping_period > SENTINEL_PING_PERIOD) ping_period = SENTINEL_PING_PERIOD;
 
@@ -3411,7 +3414,7 @@ void sentinelCheckSubjectivelyDown(sentinelRedisInstance *ri) {
         elapsed = mstime() - ri->link->act_ping_time;
     else if (ri->link->disconnected)
         elapsed = mstime() - ri->link->last_avail_time;
-
+//检测cmd 连接异常
     /* Check if we are in need for a reconnection of one of the
      * links, because we are detecting low activity.
      *
@@ -3429,6 +3432,7 @@ void sentinelCheckSubjectivelyDown(sentinelRedisInstance *ri) {
     {
         instanceLinkCloseConnection(ri->link,ri->link->cc);
     }
+	//检测pubsub连接异常
 
     /* 2) Check if the pubsub link seems connected, was connected not less
      *    than SENTINEL_MIN_LINK_RECONNECT_PERIOD, but still we have no
@@ -4239,7 +4243,7 @@ void sentinelHandleRedisInstance(sentinelRedisInstance *ri) {
     /* ========== MONITORING HALF ============ */
     /* Every kind of instance */
     sentinelReconnectInstance(ri);//建立链接
-    sentinelSendPeriodicCommands(ri);//定时发送命令
+    sentinelSendPeriodicCommands(ri);//定时发送info ping publish 命令
 
     /* ============== ACTING HALF ============= */
     /* We don't proceed with the acting half if we are in TILT mode.
@@ -4251,6 +4255,7 @@ void sentinelHandleRedisInstance(sentinelRedisInstance *ri) {
         sentinelEvent(LL_WARNING,"-tilt",NULL,"#tilt mode exited");
     }
 
+//down检测
     /* Every kind of instance */
     sentinelCheckSubjectivelyDown(ri);
 
