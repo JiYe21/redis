@@ -56,11 +56,11 @@ static struct config {
     const char *hostsocket;
     int numclients;
     int liveclients;
-    int requests;
+    int requests;//总共请求次数
     int requests_issued;
     int requests_finished;
     int keysize;
-    int datasize;
+    int datasize; //测试数据大小
     int randomkeys;
     int randomkeys_keyspacelen;
     int keepalive;
