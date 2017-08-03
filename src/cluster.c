@@ -431,7 +431,7 @@ void clusterInit(void) {
             createClusterNode(NULL,CLUSTER_NODE_MYSELF|CLUSTER_NODE_MASTER);
         serverLog(LL_NOTICE,"No cluster configuration found, I'm %.40s",
             myself->name);
-        clusterAddNode(myself);
+        clusterAddNode(myself); //添加自身
         saveconf = 1;
     }
     if (saveconf) clusterSaveConfigOrDie(1);
@@ -1234,6 +1234,7 @@ int clusterHandshakeInProgress(char *ip, int port) {
  *
  * EAGAIN - There is already an handshake in progress for this address.
  * EINVAL - IP or port are not valid. */
+ //创建节点添加到集群
 int clusterStartHandshake(char *ip, int port) {
     clusterNode *n;
     char norm_ip[NET_IP_STR_LEN];
@@ -1656,7 +1657,7 @@ int clusterProcessPacket(clusterLink *link) {
                 clusterDoBeforeSleep(CLUSTER_TODO_SAVE_CONFIG);
             }
         }
-
+//收到其他节点meet请求，如果其不再node 列表里，将其加入，等到cron时再进行连接
         /* Add this node if it is new for us and the msg type is MEET.
          * In this stage we don't try to add the node with the right
          * flags, slaveof pointer, and so forth, as this details will be
@@ -1706,7 +1707,7 @@ int clusterProcessPacket(clusterLink *link) {
                     clusterDelNode(link->node);
                     return 0;
                 }
-
+//用pong返回的name 代替meet时随机产生的name
                 /* First thing to do is replacing the random name with the
                  * right node name if this was a handshake stage. */
                 clusterRenameNode(link->node, hdr->sender);
@@ -1762,14 +1763,14 @@ int clusterProcessPacket(clusterLink *link) {
                 clearNodeFailureIfNeeded(link->node);
             }
         }
-
+//更新集群node map中节点slave/master 角色
         /* Check for role switch: slave -> master or master -> slave. */
         if (sender) {
             if (!memcmp(hdr->slaveof,CLUSTER_NODE_NULL_NAME,
                 sizeof(hdr->slaveof)))
             {
                 /* Node is a master. */
-                clusterSetNodeAsMaster(sender);
+                clusterSetNodeAsMaster(sender); //sender 是master节点，其他节点更新node map 里该节点信息
             } else {
                 /* Node is a slave. */
                 clusterNode *master = clusterLookupNode(hdr->slaveof);
@@ -2210,6 +2211,7 @@ void clusterSendPing(clusterLink *link, int type) {
      * Since we have non-voting slaves that lower the probability of an entry
      * to feature our node, we set the number of entires per packet as
      * 10% of the total nodes we have. */
+     //当节点数太多，不能把所有节点信息都发给link，仅随机发送wanted个节点信息 ，而freshnodes代表其他所有节点数(除了myself 和link)
     wanted = floor(dictSize(server.cluster->nodes)/10);
     if (wanted < 3) wanted = 3;
     if (wanted > freshnodes) wanted = freshnodes;
@@ -2231,7 +2233,7 @@ void clusterSendPing(clusterLink *link, int type) {
     clusterBuildMessageHdr(hdr,type);
 
     /* Populate the gossip fields */
-    int maxiterations = wanted*3;
+    int maxiterations = wanted*3; //循环最多次数    循环过程可能多次找到不合格node,通过这个标志退出循环
     while(freshnodes > 0 && gossipcount < wanted && maxiterations--) {
         dictEntry *de = dictGetRandomKey(server.cluster->nodes);
         clusterNode *this = dictGetVal(de);
@@ -3079,7 +3081,7 @@ void clusterCron(void) {
      * the value of 1 second. */
     handshake_timeout = server.cluster_node_timeout;
     if (handshake_timeout < 1000) handshake_timeout = 1000;
-
+// 1 与断开连接/没有连接的节点建立连接
     /* Check if we have disconnected nodes and re-establish the connection. */
     di = dictGetSafeIterator(server.cluster->nodes);
     while((de = dictNext(di)) != NULL) {
@@ -3093,7 +3095,6 @@ void clusterCron(void) {
             clusterDelNode(node);
             continue;
         }
-//还没有与cluster节点建立连接
         if (node->link == NULL) {
             int fd;
             mstime_t old_ping_sent;
@@ -3219,12 +3220,13 @@ void clusterCron(void) {
             node->ping_sent && /* we already sent a ping */
             node->pong_received < node->ping_sent && /* still waiting pong */
             /* and we are waiting for the pong more than timeout/2 */
-            now - node->ping_sent > server.cluster_node_timeout/2)
+            now - node->ping_sent > server.cluster_node_timeout/2) //等待pong超时，断开连接，等待下次连接
         {
             /* Disconnect the link, it will be reconnected automatically. */
             freeClusterLink(node->link);
         }
 
+//收到pong后一段时间发送ping
         /* If we have currently no active ping in this instance, and the
          * received PONG is older than half the cluster timeout, send
          * a new ping now, to ensure all the nodes are pinged without
@@ -3882,7 +3884,7 @@ void clusterCommand(client *c) {
         addReplyError(c,"This instance has cluster support disabled");
         return;
     }
-
+//添加集群节点
     if (!strcasecmp(c->argv[1]->ptr,"meet") && c->argc == 4) {
         long long port;
 

@@ -488,7 +488,7 @@ int quicklistPushHead(quicklist *quicklist, void *value, size_t sz) {
         quicklistNode *node = quicklistCreateNode();
         node->zl = ziplistPush(ziplistNew(), value, sz, ZIPLIST_HEAD);
 
-        quicklistNodeUpdateSz(node);
+        quicklistNodeUpdateSz(node); //更新ziplist 大小
         _quicklistInsertNodeBefore(quicklist, quicklist->head, node);
     }
     quicklist->count++;

@@ -7,7 +7,7 @@
 
 #define CLUSTER_SLOTS 16384
 #define CLUSTER_OK 0          /* Everything looks ok */
-#define CLUSTER_FAIL 1        /* The cluster can't work */
+#define CLUSTER_FAIL 1        /* The cluster can't work */ //当前集群状态
 #define CLUSTER_NAMELEN 40    /* sha1 hex length */
 #define CLUSTER_PORT_INCR 10000 /* Cluster port = baseport + PORT_INCR */
 
@@ -84,7 +84,7 @@ typedef struct clusterNode {
     char name[CLUSTER_NAMELEN]; /* Node name, hex string, sha1-size */
     int flags;      /* CLUSTER_NODE_... */
     uint64_t configEpoch; /* Last configEpoch observed for this node */
-    unsigned char slots[CLUSTER_SLOTS/8]; /* slots handled by this node */
+    unsigned char slots[CLUSTER_SLOTS/8]; /* slots handled by this node */ //当前节点使用的所有slot
     int numslots;   /* Number of slots handled by this node */
     int numslaves;  /* Number of slave nodes, if this is a master */
     struct clusterNode **slaves; /* pointers to slave nodes */
@@ -104,17 +104,17 @@ typedef struct clusterNode {
     clusterLink *link;          /* TCP/IP link with this node */ //链接信息
     list *fail_reports;         /* List of nodes signaling this as failing */
 } clusterNode;
-
+//记录所有节点信息
 typedef struct clusterState {
     clusterNode *myself;  /* This node */
     uint64_t currentEpoch;
-    int state;            /* CLUSTER_OK, CLUSTER_FAIL, ... */
+    int state;            /* CLUSTER_OK, CLUSTER_FAIL, ... *///当前集群工作状态
     int size;             /* Num of master nodes with at least one slot */
-    dict *nodes;          /* Hash table of name -> clusterNode structures */
+    dict *nodes;          /* Hash table of name -> clusterNode structures */ //记录所有节点  key(name)->value(clusterNode) 包括myself
     dict *nodes_black_list; /* Nodes we don't re-add for a few seconds. */
     clusterNode *migrating_slots_to[CLUSTER_SLOTS];
     clusterNode *importing_slots_from[CLUSTER_SLOTS];
-    clusterNode *slots[CLUSTER_SLOTS];
+    clusterNode *slots[CLUSTER_SLOTS]; //每个slot使用的节点
     zskiplist *slots_to_keys;
     /* The following fields are used to take the slave state on elections. */
     mstime_t failover_auth_time; /* Time of previous or next election. */
@@ -227,23 +227,23 @@ typedef struct {
     uint16_t ver;       /* Protocol version, currently set to 0. */
     uint16_t notused0;  /* 2 bytes not used. */
     uint16_t type;      /* Message type */
-    uint16_t count;     /* Only used for some kind of messages. */
+    uint16_t count;     /* Only used for some kind of messages. */ //当发送ping pong 时clusterMsgDataGossip 数量
     uint64_t currentEpoch;  /* The epoch accordingly to the sending node. */
     uint64_t configEpoch;   /* The config epoch if it's a master, or the last
                                epoch advertised by its master if it is a
                                slave. */
     uint64_t offset;    /* Master replication offset if node is a master or
                            processed replication offset if node is a slave. */
-    char sender[CLUSTER_NAMELEN]; /* Name of the sender node */
+    char sender[CLUSTER_NAMELEN]; /* Name of the sender node */ //sender name
     unsigned char myslots[CLUSTER_SLOTS/8];
-    char slaveof[CLUSTER_NAMELEN];
+    char slaveof[CLUSTER_NAMELEN];     //如果当前节点为slave节点，记录master节点name
     char notused1[32];  /* 32 bytes reserved for future usage. */
     uint16_t port;      /* Sender TCP base port */
     uint16_t flags;     /* Sender node flags */
     unsigned char state; /* Cluster state from the POV of the sender */
     unsigned char mflags[3]; /* Message flags: CLUSTERMSG_FLAG[012]_... */
     union clusterMsgData data;
-} clusterMsg;
+} clusterMsg;  //头部发送者信息，data其他节点信息
 
 #define CLUSTERMSG_MIN_LEN (sizeof(clusterMsg)-sizeof(union clusterMsgData))
 

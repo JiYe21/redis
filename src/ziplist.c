@@ -259,6 +259,7 @@ unsigned int zipEncodeLength(unsigned char *p, unsigned char encoding, unsigned 
 
 /* Encode the length of the previous entry and write it to "p". Return the
  * number of bytes needed to encode this length if "p" is NULL. */
+ //返回编码前一个节点长度所需字节数，如果p非空，将大小写入
 unsigned int zipPrevEncodeLength(unsigned char *p, unsigned int len) {
     if (p == NULL) {
         return (len < ZIP_BIGLEN) ? 1 : sizeof(len)+1;
@@ -604,6 +605,7 @@ unsigned char *__ziplistInsert(unsigned char *zl, unsigned char *p, unsigned cha
         }
     }
 
+//检测字符串是否可以被编码为int,计算所占空间大小
     /* See if the entry can be encoded */
     if (zipTryEncoding(s,slen,&value,&encoding)) {
         /* 'encoding' is set to the appropriate integer encoding */
