@@ -689,6 +689,7 @@ clusterNode *createClusterNode(char *nodename, int flags) {
  * The function returns 0 if it just updates a timestamp of an existing
  * failure report from the same sender. 1 is returned if a new failure
  * report is created. */
+ //添加报告failing 节点失败的sender
 int clusterNodeAddFailureReport(clusterNode *failing, clusterNode *sender) {
     list *l = failing->fail_reports;
     listNode *ln;
@@ -1148,6 +1149,7 @@ int clusterBlacklistExists(char *nodeid) {
  * 2) Or there is no majority so no slave promotion will be authorized and the
  *    FAIL flag will be cleared after some time.
  */
+ // 1 检测node是否被标记为fail状态，如果集群中一半以上的节点认为node pfail，则确认node fail,并向集群中所有节点广播
 void markNodeAsFailingIfNeeded(clusterNode *node) {
     int failures;
     int needed_quorum = (server.cluster->size / 2) + 1;
@@ -1308,7 +1310,7 @@ void clusterProcessGossipSection(clusterMsg *hdr, clusterLink *link) {
             ntohs(g->port),
             ci);
         sdsfree(ci);
-
+// 1 对node节点online/offline 处理
         /* Update our state accordingly to the gossip sections */
         node = clusterLookupNode(g->nodename);
         if (node) {
@@ -1330,7 +1332,7 @@ void clusterProcessGossipSection(clusterMsg *hdr, clusterLink *link) {
                     }
                 }
             }
-
+// 2 node 地址变更
             /* If we already know this node, but it is not reachable, and
              * we see a different address in the gossip section of a node that
              * can talk with this other node, update the address, disconnect
@@ -1353,6 +1355,7 @@ void clusterProcessGossipSection(clusterMsg *hdr, clusterLink *link) {
              * Note that we require that the sender of this gossip message
              * is a well known node in our cluster, otherwise we risk
              * joining another cluster. */
+             // 3 添加新节点
             if (sender &&
                 !(flags & CLUSTER_NODE_NOADDR) &&
                 !clusterBlacklistExists(g->nodename))
@@ -1547,7 +1550,7 @@ int clusterProcessPacket(clusterLink *link) {
     server.cluster->stats_bus_messages_received++;
     serverLog(LL_DEBUG,"--- Processing packet of type %d, %lu bytes",
         type, (unsigned long) totlen);
-
+// 1 包长合理性检测
     /* Perform sanity checks */
     if (totlen < 16) return 1; /* At least signature, version, totlen, count. */
     if (totlen > sdslen(link->rcvbuf)) return 1;
@@ -1629,7 +1632,7 @@ int clusterProcessPacket(clusterLink *link) {
                 server.cluster->mf_master_offset);
         }
     }
-
+//  1 初始化 meet /ping
     /* Initial processing of PING and MEET requests replying with a PONG. */
     if (type == CLUSTERMSG_TYPE_PING || type == CLUSTERMSG_TYPE_MEET) {
         serverLog(LL_DEBUG,"Ping packet received: %p", (void*)link->node);
@@ -1681,7 +1684,7 @@ int clusterProcessPacket(clusterLink *link) {
         /* Anyway reply with a PONG */
         clusterSendPing(link,CLUSTERMSG_TYPE_PONG);
     }
-
+// 2 更新节点配置
     /* PING, PONG, MEET: process config information. */
     if (type == CLUSTERMSG_TYPE_PING || type == CLUSTERMSG_TYPE_PONG ||
         type == CLUSTERMSG_TYPE_MEET)
@@ -1734,7 +1737,7 @@ int clusterProcessPacket(clusterLink *link) {
                 return 0;
             }
         }
-
+//更新sender 地址
         /* Update the node address if it changed. */
         if (sender && type == CLUSTERMSG_TYPE_PING &&
             !nodeInHandshake(sender) &&
@@ -1763,7 +1766,7 @@ int clusterProcessPacket(clusterLink *link) {
                 clearNodeFailureIfNeeded(link->node);
             }
         }
-//更新集群node map中节点slave/master 角色
+//更新集群node map中 sender slave/master 角色
         /* Check for role switch: slave -> master or master -> slave. */
         if (sender) {
             if (!memcmp(hdr->slaveof,CLUSTER_NODE_NULL_NAME,
@@ -1878,10 +1881,10 @@ int clusterProcessPacket(clusterLink *link) {
         {
             clusterHandleConfigEpochCollision(sender);
         }
-
+//更新gossip中其他节点信息
         /* Get info from the gossip section */
         if (sender) clusterProcessGossipSection(hdr,link);
-    } else if (type == CLUSTERMSG_TYPE_FAIL) {
+    } else if (type == CLUSTERMSG_TYPE_FAIL) {//集群检测某个节点fail,广播给所有节点，所有节点在这里更新状态
         clusterNode *failing;
 
         if (sender) {
@@ -2423,6 +2426,7 @@ void clusterPropagatePublish(robj *channel, robj *message) {
  *
  * Note that we send the failover request to everybody, master and slave nodes,
  * but only the masters are supposed to reply to our query. */
+ //拉票请求
 void clusterRequestFailoverAuth(void) {
     unsigned char buf[sizeof(clusterMsg)];
     clusterMsg *hdr = (clusterMsg*) buf;
@@ -2439,6 +2443,7 @@ void clusterRequestFailoverAuth(void) {
 }
 
 /* Send a FAILOVER_AUTH_ACK message to the specified node. */
+
 void clusterSendFailoverAuth(clusterNode *node) {
     unsigned char buf[sizeof(clusterMsg)];
     clusterMsg *hdr = (clusterMsg*) buf;
@@ -2579,6 +2584,7 @@ void clusterSendFailoverAuthIfNeeded(clusterNode *node, clusterMsg *request) {
  * The slave rank is used to add a delay to start an election in order to
  * get voted and replace a failing master. Slaves with better replication
  * offsets are more likely to win. */
+ //根据同一个master 的slave offset排序，offset 越大越有利选为master
 int clusterGetSlaveRank(void) {
     long long myoffset;
     int j, rank = 0;
@@ -2833,7 +2839,7 @@ void clusterHandleSlaveFailover(void) {
         clusterLogCantFailover(CLUSTER_CANT_FAILOVER_EXPIRED);
         return;
     }
-
+//拉票
     /* Ask for votes if needed. */
     if (server.cluster->failover_auth_sent == 0) {
         server.cluster->currentEpoch++;
@@ -2847,7 +2853,7 @@ void clusterHandleSlaveFailover(void) {
                              CLUSTER_TODO_FSYNC_CONFIG);
         return; /* Wait for replies. */
     }
-
+//集群中至少一半以上机器支持，则选举成功，并广播
     /* Check if we reached the quorum. */
     if (server.cluster->failover_auth_count >= needed_quorum) {
         /* We have the quorum, we can finally failover the master. */

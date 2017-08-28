@@ -102,7 +102,7 @@ typedef struct clusterNode {
     char ip[NET_IP_STR_LEN];  /* Latest known IP address of this node */
     int port;                   /* Latest known port of this node */
     clusterLink *link;          /* TCP/IP link with this node */ //链接信息
-    list *fail_reports;         /* List of nodes signaling this as failing */
+    list *fail_reports;         /* List of nodes signaling this as failing */ //报告该节点pfail的节点列表
 } clusterNode;
 //记录所有节点信息
 typedef struct clusterState {

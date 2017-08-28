@@ -55,26 +55,26 @@ static struct config {
     int hostport;
     const char *hostsocket;
     int numclients;
-    int liveclients;
+    int liveclients;//有效连接数
     int requests;//总共请求次数
-    int requests_issued;
-    int requests_finished;
+    int requests_issued;//发送请求次数
+    int requests_finished;//响应次数
     int keysize;
     int datasize; //测试数据大小
     int randomkeys;
     int randomkeys_keyspacelen;
-    int keepalive;
+    int keepalive;//一个连接是否alive,如果为0,则一次请求完成，连接断开，重新创建新的连接
     int pipeline;
     int showerrors;
     long long start;
     long long totlatency;
-    long long *latency;
+    long long *latency; //记录每次请求响应间隔
     const char *title;
     list *clients;
     int quiet;
     int csv;
     int loop;
-    int idlemode;
+    int idlemode;//空转模式，不发送任何请求
     int dbnum;
     sds dbnumstr;
     char *tests;
@@ -87,7 +87,7 @@ typedef struct _client {
     char **randptr;         /* Pointers to :rand: strings inside the command buf */
     size_t randlen;         /* Number of pointers in client->randptr */
     size_t randfree;        /* Number of unused pointers in client->randptr */
-    size_t written;         /* Bytes of 'obuf' already written */
+    size_t written;         /* Bytes of 'obuf' already written */  //一次请求写的数据大小，当一次请求收到响应后完成，重置为0
     long long start;        /* Start time of a request */
     long long latency;      /* Request latency */
     int pending;            /* Number of pending requests (replies to consume) */ //每次发多少请求
@@ -245,6 +245,7 @@ static void readHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
                 if (config.requests_finished < config.requests)
                     config.latency[config.requests_finished++] = c->latency;
                 c->pending--;
+				//发送的请求全部收到响应
                 if (c->pending == 0) {
                     clientDone(c);
                     break;
@@ -261,7 +262,7 @@ static void writeHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
     UNUSED(el);
     UNUSED(fd);
     UNUSED(mask);
-
+//初始化一个新请求，大于requests,则退出
     /* Initialize request when nothing was written. */
     if (c->written == 0) {
         /* Enforce upper bound to number of requests. */
@@ -286,6 +287,7 @@ static void writeHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
             return;
         }
         c->written += nwritten;
+		//当一次请求全部写完，取消写事件，设置读事件
         if (sdslen(c->obuf) == c->written) {
             aeDeleteFileEvent(config.el,c->context->fd,AE_WRITABLE);
             aeCreateFileEvent(config.el,c->context->fd,AE_READABLE,readHandler,c);
@@ -338,6 +340,7 @@ static client createClient(char *cmd, size_t len, client from) {
      * Queue N requests accordingly to the pipeline size, or simply clone
      * the example client buffer. */
     c->obuf = sdsempty();
+	//如果需要重新认证和选择数据库，将cmd请求添加到obuf后面
     /* Prefix the request buffer with AUTH and/or SELECT commands, if applicable.
      * These commands are discarded after the first response, so if the client is
      * reused the commands will not be used again. */
@@ -416,7 +419,7 @@ static void createMissingClients(client c) {
 
     while(config.liveclients < config.numclients) {
         createClient(NULL,0,c);
-
+		//backlog  完全建立链接等待accept队列大小，请求数太多可能会丢失 或者返回错误ECONNREFUSED
         /* Listen backlog is quite limited on most systems */
         if (++n > 64) {
             usleep(50000);
@@ -442,7 +445,7 @@ static void showLatencyReport(void) {
         printf("  %d bytes payload\n", config.datasize);
         printf("  keep alive: %d\n", config.keepalive);
         printf("\n");
-
+//对每个请求延迟进行排序，统计小于某个延迟时间请求数
         qsort(config.latency,config.requests,sizeof(long long),compareLatency);
         for (i = 0; i < config.requests; i++) {
             if (config.latency[i]/1000 != curlat || i == (config.requests-1)) {
