@@ -117,6 +117,7 @@ ssize_t syncRead(int fd, char *ptr, ssize_t size, long long timeout) {
     }
 }
 
+//读取一行，一个个字符读，超时或者一行结束，或者缓存读满返回
 /* Read a line making sure that every char will not require more than 'timeout'
  * milliseconds to be read.
  *

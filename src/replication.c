@@ -1004,7 +1004,7 @@ void readSyncBulkPayload(aeEventLoop *el, int fd, void *privdata, int mask) {
      * form the server: when they match, we reached the end of the transfer. */
     static char eofmark[CONFIG_RUN_ID_SIZE];
     static char lastbytes[CONFIG_RUN_ID_SIZE];
-    static int usemark = 0;
+    static int usemark = 0; //如果master是以socket发送，有结束标识
 
     /* If repl_transfer_size == -1 we still have to read the bulk length
      * from the master reply. */
@@ -1095,12 +1095,13 @@ void readSyncBulkPayload(aeEventLoop *el, int fd, void *privdata, int mask) {
     }
 
     server.repl_transfer_lastio = server.unixtime;
+	//写入零时文件
     if (write(server.repl_transfer_fd,buf,nread) != nread) {
         serverLog(LL_WARNING,"Write error or short write writing to the DB dump file needed for MASTER <-> SLAVE synchronization: %s", strerror(errno));
         goto error;
     }
     server.repl_transfer_read += nread;
-
+//如果master将数据直接从内存读取同步给slave,数据流结尾有id标识，去掉文件结尾id标识
     /* Delete the last 40 bytes from the file if we reached EOF. */
     if (usemark && eof_reached) {
         if (ftruncate(server.repl_transfer_fd,
@@ -1110,7 +1111,7 @@ void readSyncBulkPayload(aeEventLoop *el, int fd, void *privdata, int mask) {
             goto error;
         }
     }
-
+//读取一定数据就同步到磁盘，避免最后同步时间过长
     /* Sync data on disk from time to time, otherwise at the end of the transfer
      * we may suffer a big delay as the memory buffers are copied into the
      * actual disk. */
@@ -1123,13 +1124,13 @@ void readSyncBulkPayload(aeEventLoop *el, int fd, void *privdata, int mask) {
             server.repl_transfer_last_fsync_off, sync_size);
         server.repl_transfer_last_fsync_off += sync_size;
     }
-
+//master以rdb文件同步
     /* Check if the transfer is now complete */
     if (!usemark) {
         if (server.repl_transfer_read == server.repl_transfer_size)
             eof_reached = 1;
     }
-
+//同步结束，将rdb文件加载到内存
     if (eof_reached) {
         if (rename(server.repl_transfer_tmpfile,server.rdb_filename) == -1) {
             serverLog(LL_WARNING,"Failed trying to rename the temp DB into dump.rdb in MASTER <-> SLAVE synchronization: %s", strerror(errno));
@@ -1368,7 +1369,7 @@ int slaveTryPartialResynchronization(int fd, int read_reply) {
         sdsfree(reply);
         return PSYNC_FULLRESYNC;
     }
-
+//部分同步
     if (!strncmp(reply,"+CONTINUE",9)) {
         /* Partial resync was accepted, set the replication state accordingly */
         serverLog(LL_NOTICE,
@@ -1567,6 +1568,7 @@ void syncWithMaster(aeEventLoop *el, int fd, void *privdata, int mask) {
         server.repl_state = REPL_STATE_SEND_PSYNC;
     }
 
+//尝试进行部分同步，如果有缓存master信息，重新连接后避免全同步
     /* Try a partial resynchonization. If we don't have a cached master
      * slaveTryPartialResynchronization() will at least try to use PSYNC
      * to start a full resynchronization so that we get the master run id
@@ -1599,6 +1601,7 @@ void syncWithMaster(aeEventLoop *el, int fd, void *privdata, int mask) {
         serverLog(LL_NOTICE, "MASTER <-> SLAVE sync: Master accepted a Partial Resynchronization.");
         return;
     }
+	//作为slave,如果要与master进行全同步，断开与slave连接，让slave重新同步
 
     /* PSYNC failed or is not supported: we want our slaves to resync with us
      * as well, if we have any (chained replication case). The mater may
@@ -1632,7 +1635,7 @@ void syncWithMaster(aeEventLoop *el, int fd, void *privdata, int mask) {
         goto error;
     }
 	
-//全同步
+//全同步 创建读事件，读取master同步过来的数据
     /* Setup the non blocking download of the bulk file. */
     if (aeCreateFileEvent(server.el,fd, AE_READABLE,readSyncBulkPayload,NULL)
             == AE_ERR)
