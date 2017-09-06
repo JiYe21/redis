@@ -639,7 +639,7 @@ int loadAppendOnlyFile(char *filename) {
 
     fakeClient = createFakeClient();
     startLoading(fp);
-
+//每次进入循环读取每个请求参数，执行相应命令
     while(1) {
         int argc, j;
         unsigned long len;

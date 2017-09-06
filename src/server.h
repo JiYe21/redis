@@ -245,7 +245,7 @@ typedef long long mstime_t; /* millisecond time type. */
 #define CLIENT_SLAVE (1<<0)   /* This client is a slave server */
 #define CLIENT_MASTER (1<<1)  /* This client is a master server */ //客户端是master 对于slave而言
 #define CLIENT_MONITOR (1<<2) /* This client is a slave monitor, see MONITOR */
-#define CLIENT_MULTI (1<<3)   /* This client is in a MULTI context */
+#define CLIENT_MULTI (1<<3)   /* This client is in a MULTI context */ //事务
 #define CLIENT_BLOCKED (1<<4) /* The client is waiting in a blocking operation */
 #define CLIENT_DIRTY_CAS (1<<5) /* Watched keys modified. EXEC will fail. */
 #define CLIENT_CLOSE_AFTER_REPLY (1<<6) /* Close after writing entire reply. */
@@ -584,7 +584,7 @@ typedef struct client {
     time_t lastinteraction; /* Time of the last interaction, used for timeout */
     time_t obuf_soft_limit_reached_time;
     int flags;              /* Client flags: CLIENT_* macros. */
-    int authenticated;      /* When requirepass is non-NULL. */
+    int authenticated;      /* When requirepass is non-NULL. */         
     int replstate;          /* Replication state if this is a slave. */
     int repl_put_online_on_ack; /* Install slave write handler on ACK. */
     int repldbfd;           /* Replication DB file descriptor. */
