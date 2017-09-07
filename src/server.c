@@ -3393,7 +3393,7 @@ struct evictionPoolEntry *evictionPoolAlloc(void) {
  * We insert keys on place in ascending order, so keys with the smaller
  * idle time are on the left, and keys with the higher idle time on the
  * right. */
-
+	//从db中随机抽取server.maxmemory_samples条数据，将最长时间没有访问的数据放入pool中
 #define EVICTION_SAMPLES_ARRAY_SIZE 16
 void evictionPoolPopulate(dict *sampledict, dict *keydict, struct evictionPoolEntry *pool) {
     int j, k, count;
@@ -3422,12 +3422,13 @@ void evictionPoolPopulate(dict *sampledict, dict *keydict, struct evictionPoolEn
          * again in the key dictionary to obtain the value object. */
         if (sampledict != keydict) de = dictFind(keydict, key);
         o = dictGetVal(de);
-        idle = estimateObjectIdleTime(o);
+        idle = estimateObjectIdleTime(o);//计算object没有访问的时间
 
         /* Insert the element inside the pool.
          * First, find the first empty bucket or the first populated
          * bucket that has an idle time smaller than our idle time. */
         k = 0;
+		//找到一个插入位置，类似插入排序
         while (k < MAXMEMORY_EVICTION_POOL_SIZE &&
                pool[k].key &&
                pool[k].idle < idle) k++;
@@ -3438,6 +3439,7 @@ void evictionPoolPopulate(dict *sampledict, dict *keydict, struct evictionPoolEn
         } else if (k < MAXMEMORY_EVICTION_POOL_SIZE && pool[k].key == NULL) {
             /* Inserting into empty position. No setup needed before insert. */
         } else {
+        //当前元素插入index=k处，故将k之后的元素向后移动
             /* Inserting in the middle. Now k points to the first element
              * greater than the element to insert.  */
             if (pool[MAXMEMORY_EVICTION_POOL_SIZE-1].key == NULL) {
@@ -3446,6 +3448,7 @@ void evictionPoolPopulate(dict *sampledict, dict *keydict, struct evictionPoolEn
                 memmove(pool+k+1,pool+k,
                     sizeof(pool[0])*(MAXMEMORY_EVICTION_POOL_SIZE-k-1));
             } else {
+            //如果空间不足，则将该元素插在k-1处，将首元素移除
                 /* No free space on right? Insert at k-1 */
                 k--;
                 /* Shift all elements on the left of k (included) to the
@@ -3506,7 +3509,7 @@ int freeMemoryIfNeeded(void) {
             dictEntry *de;
             redisDb *db = server.db+j;
             dict *dict;
-
+//选择一个dict
             if (server.maxmemory_policy == MAXMEMORY_ALLKEYS_LRU ||
                 server.maxmemory_policy == MAXMEMORY_ALLKEYS_RANDOM)
             {
@@ -3515,7 +3518,7 @@ int freeMemoryIfNeeded(void) {
                 dict = server.db[j].expires;
             }
             if (dictSize(dict) == 0) continue;
-
+//随机值
             /* volatile-random and allkeys-random policy */
             if (server.maxmemory_policy == MAXMEMORY_ALLKEYS_RANDOM ||
                 server.maxmemory_policy == MAXMEMORY_VOLATILE_RANDOM)
@@ -3523,7 +3526,7 @@ int freeMemoryIfNeeded(void) {
                 de = dictGetRandomKey(dict);
                 bestkey = dictGetKey(de);
             }
-
+//lru
             /* volatile-lru and allkeys-lru policy */
             else if (server.maxmemory_policy == MAXMEMORY_ALLKEYS_LRU ||
                 server.maxmemory_policy == MAXMEMORY_VOLATILE_LRU)
@@ -3531,7 +3534,9 @@ int freeMemoryIfNeeded(void) {
                 struct evictionPoolEntry *pool = db->eviction_pool;
 
                 while(bestkey == NULL) {
+					//获取要淘汰的数据
                     evictionPoolPopulate(dict, db->dict, db->eviction_pool);
+					//从右边开始寻找一个数据淘汰
                     /* Go backward from best to worst element to evict. */
                     for (k = MAXMEMORY_EVICTION_POOL_SIZE-1; k >= 0; k--) {
                         if (pool[k].key == NULL) continue;
@@ -3550,7 +3555,7 @@ int freeMemoryIfNeeded(void) {
                         /* If the key exists, is our pick. Otherwise it is
                          * a ghost and we need to try the next element. */
                         if (de) {
-                            bestkey = dictGetKey(de);
+                            bestkey = dictGetKey(de); 
                             break;
                         } else {
                             /* Ghost... */
@@ -3611,6 +3616,7 @@ int freeMemoryIfNeeded(void) {
                  * start spending so much time here that is impossible to
                  * deliver data to the slaves fast enough, so we force the
                  * transmission here inside the loop. */
+                 //尽快 释放slave outbuf内存
                 if (slaves) flushSlavesOutputBuffers();
             }
         }

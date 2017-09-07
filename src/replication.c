@@ -150,6 +150,7 @@ void feedReplicationBacklog(void *ptr, size_t len) {
     if (server.repl_backlog_histlen > server.repl_backlog_size)
         server.repl_backlog_histlen = server.repl_backlog_size;
     /* Set the offset of the first byte we have in the backlog. */
+	
     server.repl_backlog_off = server.master_repl_offset -
                               server.repl_backlog_histlen + 1;
 }
@@ -443,8 +444,8 @@ int masterTryPartialResynchronization(client *c) {
     if (getLongLongFromObjectOrReply(c,c->argv[2],&psync_offset,NULL) !=
        C_OK) goto need_full_resync;
     if (!server.repl_backlog ||
-        psync_offset < server.repl_backlog_off ||
-        psync_offset > (server.repl_backlog_off + server.repl_backlog_histlen))
+        psync_offset < server.repl_backlog_off ||  //slave off没有落在backlog缓存区内
+        psync_offset > (server.repl_backlog_off + server.repl_backlog_histlen)) // slave off 比 
     {
         serverLog(LL_NOTICE,
             "Unable to partial resync with slave %s for lack of backlog (Slave request was: %lld).", replicationGetSlaveName(c), psync_offset);
@@ -568,15 +569,17 @@ int startBgsaveForReplication(int mincapa) {
 /* SYNC and PSYNC command implemenation. */
 void syncCommand(client *c) {
     /* ignore SYNC if already slave or in monitor mode */
+	//如果已经是slave client，拒绝sync
     if (c->flags & CLIENT_SLAVE) return;
 
+//如果slave正在与master 同步数据，拒绝向client同步
     /* Refuse SYNC requests if we are a slave but the link with our master
      * is not ok... */
     if (server.masterhost && server.repl_state != REPL_STATE_CONNECTED) {
         addReplyError(c,"Can't SYNC while not connected with my master");
         return;
     }
-
+//如果slave outbuf中有待发送的数据，拒绝同步
     /* SYNC can't be issued when the server has pending data to send to
      * the client about already issued commands. We need a fresh reply
      * buffer registering the differences between the BGSAVE and the current
@@ -739,7 +742,7 @@ void replconfCommand(client *c) {
         } else if (!strcasecmp(c->argv[j]->ptr,"capa")) {
             /* Ignore capabilities not understood by this master. */
             if (!strcasecmp(c->argv[j+1]->ptr,"eof"))
-                c->slave_capa |= SLAVE_CAPA_EOF;
+                c->slave_capa |= SLAVE_CAPA_EOF;  //slave 可以解析rdb stream 结尾标识(以socket 形式 replication发送)
         } else if (!strcasecmp(c->argv[j]->ptr,"ack")) {
             /* REPLCONF ACK is used by slave to inform the master the amount
              * of replication stream that it processed so far. It is an

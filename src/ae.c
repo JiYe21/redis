@@ -319,10 +319,10 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
             int retval;
 
             id = te->id;
-            retval = te->timeProc(eventLoop, id, te->clientData);
+            retval = te->timeProc(eventLoop, id, te->clientData);//retval 下次执行的间隔
             processed++;
             if (retval != AE_NOMORE) {
-                aeAddMillisecondsToNow(retval,&te->when_sec,&te->when_ms);
+                aeAddMillisecondsToNow(retval,&te->when_sec,&te->when_ms); 
             } else {
                 te->id = AE_DELETED_EVENT_ID;
             }

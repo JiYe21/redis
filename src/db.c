@@ -877,6 +877,7 @@ long long getExpire(redisDb *db, robj *key) {
  * AOF and the master->slave link guarantee operation ordering, everything
  * will be consistent even if we allow write operations against expiring
  * keys. */
+ //É¾³ýaof slave key
 void propagateExpire(redisDb *db, robj *key) {
     robj *argv[2];
 
