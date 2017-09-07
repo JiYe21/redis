@@ -2364,7 +2364,7 @@ int processCommand(client *c) {
         c->flags |= CLIENT_CLOSE_AFTER_REPLY;
         return C_ERR;
     }
-
+// 1 检测命令是否正确，参数是否错误
     /* Now lookup the command and check ASAP about trivial error conditions
      * such as wrong arity, bad command name and so forth. */
     c->cmd = c->lastcmd = lookupCommand(c->argv[0]->ptr);
@@ -2380,7 +2380,7 @@ int processCommand(client *c) {
             c->cmd->name);
         return C_OK;
     }
-
+// 2 认证检测
     /* Check if the user is authenticated */
     if (server.requirepass && !c->authenticated && c->cmd->proc != authCommand)
     {
@@ -2434,7 +2434,7 @@ int processCommand(client *c) {
             return C_OK;
         }
     }
-
+// 如果master持久化失败拒绝写
     /* Don't accept write commands if there are problems persisting on disk
      * and if this is a master instance. */
     if (((server.stop_writes_on_bgsave_err &&
@@ -2468,7 +2468,7 @@ int processCommand(client *c) {
         addReply(c, shared.noreplicaserr);
         return C_OK;
     }
-
+// 如果是只读slave 拒绝用户客户端写(除了master)
     /* Don't accept write commands if this is a read only slave. But
      * accept write commands if this is our master. */
     if (server.masterhost && server.repl_slave_ro &&
@@ -2500,7 +2500,7 @@ int processCommand(client *c) {
         addReply(c, shared.masterdownerr);
         return C_OK;
     }
-
+//如果正在加载rdb/aof数据
     /* Loading DB? Return an error if the command has not the
      * CMD_LOADING flag. */
     if (server.loading && !(c->cmd->flags & CMD_LOADING)) {
