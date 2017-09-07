@@ -574,8 +574,8 @@ typedef struct client {
     robj **argv;            /* Arguments of current command. */
     struct redisCommand *cmd, *lastcmd;  /* Last command executed. */
     int reqtype;            /* Request protocol type: PROTO_REQ_* */
-    int multibulklen;       /* Number of multi bulk arguments left to read. */
-    long bulklen;           /* Length of bulk argument in multi bulk request. */
+    int multibulklen;       /* Number of multi bulk arguments left to read. */ //请求multi bulk request num  example:  set key value  3
+    long bulklen;           /* Length of bulk argument in multi bulk request. */  //length bulk 
     list *reply;            /* List of reply objects to send to the client. */
     unsigned long long reply_bytes; /* Tot bytes of objects in reply list. */
     size_t sentlen;         /* Amount of bytes already sent in the current
@@ -591,7 +591,7 @@ typedef struct client {
     off_t repldboff;        /* Replication DB file offset. */
     off_t repldbsize;       /* Replication DB file size. */ //rdb文件大小
     sds replpreamble;       /* Replication DB preamble. */
-    long long reploff;      /* Replication offset if this is our master. */ //从服务记录自身偏移量，每疵上报给master
+    long long reploff;      /* Replication offset if this is our master. */ //从服务记录自身偏移量(收到master数据总长度)，每疵上报给master
     long long repl_ack_off; /* Replication ack offset, if this is a slave. */  //master记录 每个slave当前offset
     long long repl_ack_time;/* Replication ack time, if this is a slave. */
     long long psync_initial_offset; /* FULLRESYNC reply offset other slaves
@@ -773,8 +773,8 @@ struct redisServer {
     long long slowlog_log_slower_than; /* SLOWLOG time limit (to get logged) */
     unsigned long slowlog_max_len;     /* SLOWLOG max number of items logged */
     size_t resident_set_size;       /* RSS sampled in serverCron(). */
-    long long stat_net_input_bytes; /* Bytes read from network. */
-    long long stat_net_output_bytes; /* Bytes written to network. */
+    long long stat_net_input_bytes; /* Bytes read from network. */     //从网络读取总数据
+    long long stat_net_output_bytes; /* Bytes written to network. */   //发送总数据
     /* The following two are used to track instantaneous metrics, like
      * number of operations per second, network traffic. */
     struct {
@@ -788,7 +788,7 @@ struct redisServer {
     int maxidletime;                /* Client timeout in seconds */
     int tcpkeepalive;               /* Set SO_KEEPALIVE if non-zero. */
     int active_expire_enabled;      /* Can be disabled for testing purposes. */
-    size_t client_max_querybuf_len; /* Limit for client query buffer length */
+    size_t client_max_querybuf_len; /* Limit for client query buffer length */  //客户端最大querybuf 长度
     int dbnum;                      /* Total number of configured DBs */
     int supervised;                 /* 1 if supervised, 0 otherwise. */
     int supervised_mode;            /* See SUPERVISED_* */
@@ -861,7 +861,7 @@ struct redisServer {
     int repl_ping_slave_period;     /* Master pings the slave every N seconds */
     char *repl_backlog;             /* Replication backlog for partial syncs */
     long long repl_backlog_size;    /* Backlog circular buffer size */
-    long long repl_backlog_histlen; /* Backlog actual data length */
+    long long repl_backlog_histlen; /* Backlog actual data length */ //实际发给slave数据总长度
     long long repl_backlog_idx;     /* Backlog circular buffer current offset *///当前buf可写的位置
     long long repl_backlog_off;     /* Replication offset of first byte in the
                                        backlog buffer. */

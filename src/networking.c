@@ -1121,9 +1121,9 @@ static void setProtocolError(client *c, int pos) {
 
 int processMultibulkBuffer(client *c) {
     char *newline = NULL;
-    int pos = 0, ok;
+    int pos = 0, ok; //pos  每个bulk起点
     long long ll;
-
+//such as "*3\r\n$3\r\nSET\r\n$5\r\nmykey\r\n$7\r\nmyvalue\r\n"
     if (c->multibulklen == 0) {
         /* The client should have been reset */
         serverAssertWithInfo(c,NULL,c->argc == 0);
@@ -1164,10 +1164,10 @@ int processMultibulkBuffer(client *c) {
         if (c->argv) zfree(c->argv);
         c->argv = zmalloc(sizeof(robj*)*c->multibulklen);
     }
-
+//multi bulk request 循环解析
     serverAssertWithInfo(c,NULL,c->multibulklen > 0);
     while(c->multibulklen) {
-        /* Read bulk length if unknown */
+        /* Read bulk length if unknown */ //如果signal bulk parse finish,enter
         if (c->bulklen == -1) {
             newline = strchr(c->querybuf+pos,'\r');
             if (newline == NULL) {
@@ -1191,14 +1191,14 @@ int processMultibulkBuffer(client *c) {
                 setProtocolError(c,pos);
                 return C_ERR;
             }
-
+//signal bulk长度小于512m
             ok = string2ll(c->querybuf+pos+1,newline-(c->querybuf+pos+1),&ll);
             if (!ok || ll < 0 || ll > 512*1024*1024) {
                 addReplyError(c,"Protocol error: invalid bulk length");
                 setProtocolError(c,pos);
                 return C_ERR;
             }
-
+//当 signal bulk太长(大于PROTO_MBULK_BIG_ARG)，在readQueryFromClient中存在多次扩容数据拷贝，所以此处一次扩容
             pos += newline-(c->querybuf+pos)+2;
             if (ll >= PROTO_MBULK_BIG_ARG) {
                 size_t qblen;
@@ -1207,7 +1207,7 @@ int processMultibulkBuffer(client *c) {
                  * try to make it likely that it will start at c->querybuf
                  * boundary so that we can optimize object creation
                  * avoiding a large copy of data. */
-                sdsrange(c->querybuf,pos,-1);
+                sdsrange(c->querybuf,pos,-1);//将该bulk前数据截掉(因为已经解析完毕),留出更多空间
                 pos = 0;
                 qblen = sdslen(c->querybuf);
                 /* Hint the sds library about the amount of bytes this string is
@@ -1217,7 +1217,7 @@ int processMultibulkBuffer(client *c) {
             }
             c->bulklen = ll;
         }
-
+//如果signal bulk没全部读完，退出解析循环
         /* Read bulk argument */
         if (sdslen(c->querybuf)-pos < (unsigned)(c->bulklen+2)) {
             /* Not enough data (+2 == trailing \r\n) */
@@ -1246,13 +1246,13 @@ int processMultibulkBuffer(client *c) {
             c->multibulklen--;
         }
     }
-
+//multi bulk 如果有某个bulk没解析完，截断前面解析完的bulk
     /* Trim to pos */
     if (pos) sdsrange(c->querybuf,pos,-1);
 
     /* We're done when c->multibulk == 0 */
     if (c->multibulklen == 0) return C_OK;
-
+//signal bulk没全部读完
     /* Still not read to process the command */
     return C_ERR;
 }
@@ -1320,6 +1320,7 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
      * at the risk of requiring more read(2) calls. This way the function
      * processMultiBulkBuffer() can avoid copying buffers to create the
      * Redis Object representing the argument. */
+     //默认从内核读长度为PROTO_IOBUF_LEN，但是如果发现有multi bulk request，且某个bulk太长，尽量设置读取长度为bulk剩余读取长度
     if (c->reqtype == PROTO_REQ_MULTIBULK && c->multibulklen && c->bulklen != -1
         && c->bulklen >= PROTO_MBULK_BIG_ARG)
     {
@@ -1348,6 +1349,7 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
 
     sdsIncrLen(c->querybuf,nread);
     c->lastinteraction = server.unixtime;
+	//对于slave，记录收到master数据长度，断网后重连master有机会进行部分同步
     if (c->flags & CLIENT_MASTER) c->reploff += nread;
     server.stat_net_input_bytes += nread;
     if (sdslen(c->querybuf) > server.client_max_querybuf_len) {
