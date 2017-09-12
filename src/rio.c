@@ -56,6 +56,7 @@
 #include "server.h"
 
 /* ------------------------- Buffer I/O implementation ----------------------- */
+//从buf中读写实现
 
 /* Returns 1 or 0 for success/failure. */
 static size_t rioBufferWrite(rio *r, const void *buf, size_t len) {
@@ -166,6 +167,7 @@ void rioInitWithFile(rio *r, FILE *fp) {
  * When buf is NULL and len is 0, the function performs a flush operation
  * if there is some pending buffer, so this function is also used in order
  * to implement rioFdsetFlush(). */
+ //将数据写入buf中，积累到一定量一次写入socket
 static size_t rioFdsetWrite(rio *r, const void *buf, size_t len) {
     ssize_t retval;
     int j;
@@ -177,7 +179,7 @@ static size_t rioFdsetWrite(rio *r, const void *buf, size_t len) {
     if (len) {
         r->io.fdset.buf = sdscatlen(r->io.fdset.buf,buf,len);
         len = 0; /* Prevent entering the while below if we don't flush. */
-        if (sdslen(r->io.fdset.buf) > PROTO_IOBUF_LEN) doflush = 1;
+        if (sdslen(r->io.fdset.buf) > PROTO_IOBUF_LEN) doflush = 1; //buf中数据大于PROTO_IOBUF_LEN则写入socket
     }
 
     if (doflush) {
@@ -189,7 +191,7 @@ static size_t rioFdsetWrite(rio *r, const void *buf, size_t len) {
      * parallelize while the kernel is sending data in background to
      * the TCP socket. */
     while(len) {
-        size_t count = len < 1024 ? len : 1024;
+        size_t count = len < 1024 ? len : 1024;//一次写入长度
         int broken = 0;
         for (j = 0; j < r->io.fdset.numfds; j++) {
             if (r->io.fdset.state[j] != 0) {
@@ -201,6 +203,7 @@ static size_t rioFdsetWrite(rio *r, const void *buf, size_t len) {
             /* Make sure to write 'count' bytes to the socket regardless
              * of short writes. */
             size_t nwritten = 0;
+			//循环write,确保count数据写完
             while(nwritten != count) {
                 retval = write(r->io.fdset.fds[j],p+nwritten,count-nwritten);
                 if (retval <= 0) {

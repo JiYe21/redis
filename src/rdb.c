@@ -414,6 +414,7 @@ int rdbSaveStringObject(rio *rdb, robj *obj) {
  *                 instead of a Redis object with an sds in it.
  * RDB_LOAD_SDS: Return an SDS string instead of a Redis object.
  */
+ 
 void *rdbGenericLoadStringObject(rio *rdb, int flags) {
     int encode = flags & RDB_LOAD_ENC;
     int plain = flags & RDB_LOAD_PLAIN;
@@ -457,6 +458,7 @@ robj *rdbLoadStringObject(rio *rdb) {
     return rdbGenericLoadStringObject(rdb,RDB_LOAD_NONE);
 }
 
+//获取encode string
 robj *rdbLoadEncodedStringObject(rio *rdb) {
     return rdbGenericLoadStringObject(rdb,RDB_LOAD_ENC);
 }
@@ -1259,7 +1261,9 @@ void stopLoading(void) {
    and if needed calculate rdb checksum  */
 void rdbLoadProgressCallback(rio *r, const void *buf, size_t len) {
     if (server.rdb_checksum)
-        rioGenericUpdateChecksum(r, buf, len);
+        rioGenericUpdateChecksum(r, buf, len);//计算校验码
+    //每次从rdb读取loading_process_events_interval_bytes数据后，1 、slave 向master发送一个\n字符，避免master检测slave超时
+   // 2、进入事件循环
     if (server.loading_process_events_interval_bytes &&
         (r->processed_bytes + len)/server.loading_process_events_interval_bytes > r->processed_bytes/server.loading_process_events_interval_bytes)
     {
@@ -1273,7 +1277,7 @@ void rdbLoadProgressCallback(rio *r, const void *buf, size_t len) {
         processEventsWhileBlocked();
     }
 }
-
+//读取rdb文件，加载数据到内存
 int rdbLoad(char *filename) {
     uint32_t dbid;
     int type, rdbver;
@@ -1287,9 +1291,11 @@ int rdbLoad(char *filename) {
 
     rioInitWithFile(&rdb,fp);
     rdb.update_cksum = rdbLoadProgressCallback;
-    rdb.max_processing_chunk = server.loading_process_events_interval_bytes;
+    rdb.max_processing_chunk = server.loading_process_events_interval_bytes;//默认2m
     if (rioRead(&rdb,buf,9) == 0) goto eoferr;
     buf[9] = '\0';
+	//rdb文件格式  header: 5个字节REDIS字符串 4个字节版本号  
+	// body: 1个字节RDB opcodes | 1个字节object type | key len |key | value
     if (memcmp(buf,"REDIS",5) != 0) {
         fclose(fp);
         serverLog(LL_WARNING,"Wrong signature trying to load DB from file");
@@ -1303,6 +1309,7 @@ int rdbLoad(char *filename) {
         errno = EINVAL;
         return C_ERR;
     }
+//正式加载数据
 
     startLoading(fp);
     while(1) {
@@ -1384,7 +1391,7 @@ int rdbLoad(char *filename) {
             decrRefCount(auxval);
             continue; /* Read type again. */
         }
-
+//获取key,key 为robj
         /* Read key */
         if ((key = rdbLoadStringObject(&rdb)) == NULL) goto eoferr;
         /* Read value */
@@ -1394,13 +1401,14 @@ int rdbLoad(char *filename) {
          * received from the master. In the latter case, the master is
          * responsible for key expiry. If we would expire keys here, the
          * snapshot taken by the master may not be reflected on the slave. */
+         //将过期的key删除
         if (server.masterhost == NULL && expiretime != -1 && expiretime < now) {
             decrRefCount(key);
             decrRefCount(val);
             continue;
         }
         /* Add the new object in the hash table */
-        dbAdd(db,key,val);
+        dbAdd(db,key,val);//将key value添加到数据库中
 
         /* Set the expire time if needed */
         if (expiretime != -1) setExpire(db,key,expiretime);
@@ -1408,6 +1416,7 @@ int rdbLoad(char *filename) {
         decrRefCount(key);
     }
     /* Verify the checksum if RDB version is >= 5 */
+	//从rdb读取校验码，与计算比较
     if (rdbver >= 5 && server.rdb_checksum) {
         uint64_t cksum, expected = rdb.cksum;
 

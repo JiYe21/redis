@@ -53,6 +53,7 @@
  *
  * Lengths up to 63 are stored using a single byte, most DB keys, and may
  * values, will fit inside. */
+ //为了节省空间，用一个字节高两bit区分数据长度，长度 < 1<<6可以用一个byte表示 < 1<<14可以用两个字节表示
 #define RDB_6BITLEN 0
 #define RDB_14BITLEN 1
 #define RDB_32BITLEN 2
@@ -111,7 +112,7 @@ void rdbRemoveTempFile(pid_t childpid);
 int rdbSave(char *filename);
 ssize_t rdbSaveObject(rio *rdb, robj *o);
 size_t rdbSavedObjectLen(robj *o);
-robj *rdbLoadObject(int type, rio *rdb);
+robj *rdbLoadObject(int type, rio *rdb);//type:object type
 void backgroundSaveDoneHandler(int exitcode, int bysignal);
 int rdbSaveKeyValuePair(rio *rdb, robj *key, robj *val, long long expiretime, long long now);
 robj *rdbLoadStringObject(rio *rdb);

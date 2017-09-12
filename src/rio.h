@@ -35,7 +35,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "sds.h"
-
+//不同io(buffer,file,socket)类型抽象，rio如oop基类，read/write如同虚函数
 struct _rio {
     /* Backend functions.
      * Since this functions do not tolerate short writes or reads the return
@@ -67,12 +67,12 @@ struct _rio {
         /* In-memory buffer target. */
         struct {
             sds ptr;
-            off_t pos;
+            off_t pos;//read/write pos
         } buffer;
         /* Stdio file pointer target. */
         struct {
             FILE *fp;
-            off_t buffered; /* Bytes written since last fsync. */
+            off_t buffered; /* Bytes written since last fsync. */  //往文件中写入数据，当大于autosync，刷新到硬盘
             off_t autosync; /* fsync after 'autosync' bytes written. */
         } file;
         /* Multiple FDs target (used to write to N sockets). */
@@ -80,8 +80,8 @@ struct _rio {
             int *fds;       /* File descriptors. */
             int *state;     /* Error state of each fd. 0 (if ok) or errno. */
             int numfds;
-            off_t pos;
-            sds buf;
+            off_t pos;//
+            sds buf;   //read/write buf
         } fdset;
     } io;
 };
@@ -91,7 +91,7 @@ typedef struct _rio rio;
 /* The following functions are our interface with the stream. They'll call the
  * actual implementation of read / write / tell, and will update the checksum
  * if needed. */
-
+//相当于io基类接口，而具体行为通过rio回调实现
 static inline size_t rioWrite(rio *r, const void *buf, size_t len) {
     while (len) {
         size_t bytes_to_write = (r->max_processing_chunk && r->max_processing_chunk < len) ? r->max_processing_chunk : len;
