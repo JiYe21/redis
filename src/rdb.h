@@ -53,7 +53,8 @@
  *
  * Lengths up to 63 are stored using a single byte, most DB keys, and may
  * values, will fit inside. */
- //为了节省空间，用一个字节高两bit区分数据长度，长度 < 1<<6可以用一个byte表示 < 1<<14可以用两个字节表示
+ //为了节省空间，用一个字节高两bit区分数据类型和长度，长度 < 1<<6可以用一个byte表示 < 1<<14可以用两个字节表示
+ //高两位如果为11，剩下6位表示数据类型
 #define RDB_6BITLEN 0
 #define RDB_14BITLEN 1
 #define RDB_32BITLEN 2

@@ -199,7 +199,7 @@ typedef long long mstime_t; /* millisecond time type. */
  * internally represented in multiple ways. The 'encoding' field of the object
  * is set to one of this fields for this object. */
 #define OBJ_ENCODING_RAW 0     /* Raw representation */
-#define OBJ_ENCODING_INT 1     /* Encoded as integer */
+#define OBJ_ENCODING_INT 1     /* Encoded as integer */ // string”√int±Ì æ
 #define OBJ_ENCODING_HT 2      /* Encoded as hash table */
 #define OBJ_ENCODING_ZIPMAP 3  /* Encoded as zipmap */
 #define OBJ_ENCODING_LINKEDLIST 4 /* Encoded as regular linked list */

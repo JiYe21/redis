@@ -199,6 +199,7 @@ int rdbEncodeInteger(long long value, unsigned char *enc) {
 /* Loads an integer-encoded object with the specified encoding type "enctype".
  * The returned value changes according to the flags, see
  * rdbGenerincLoadStringObject() for more info. */
+ //从rdb文件读取int类型数据，转为string对象
 void *rdbLoadIntegerObject(rio *rdb, int enctype, int flags) {
     int plain = flags & RDB_LOAD_PLAIN;
     int encode = flags & RDB_LOAD_ENC;
@@ -975,6 +976,9 @@ void rdbRemoveTempFile(pid_t childpid) {
 
 /* Load a Redis object of the specified type from the specified file.
  * On success a newly allocated object is returned, otherwise NULL. */
+ //string:   length|data
+ //list : item num | string
+ //set: item num | string
 robj *rdbLoadObject(int rdbtype, rio *rdb) {
     robj *o = NULL, *ele, *dec;
     size_t len;
@@ -986,6 +990,7 @@ robj *rdbLoadObject(int rdbtype, rio *rdb) {
         o = tryObjectEncoding(o);
     } else if (rdbtype == RDB_TYPE_LIST) {
         /* Read list value */
+		//len list长度
         if ((len = rdbLoadLen(rdb,NULL)) == RDB_LENERR) return NULL;
 
         o = createQuicklistObject();
