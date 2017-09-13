@@ -143,9 +143,10 @@
 // structure: bytes|tail|length|entry1|entry2|end
 // entry: prev node size|encoding|context
 // prev:  如果前一个节点长度小于254 则1个byte存储长度，如果大于254，1个byte存储254，另外4个byte存储长度
+//encoding: 前2bit决定数据类型(int,str),如果是int,6bit决定int类型，如果是str，用6bit/14bit/4byte记录str长度
 #define ZIPLIST_BYTES(zl)       (*((uint32_t*)(zl)))
 #define ZIPLIST_TAIL_OFFSET(zl) (*((uint32_t*)((zl)+sizeof(uint32_t))))
-#define ZIPLIST_LENGTH(zl)      (*((uint16_t*)((zl)+sizeof(uint32_t)*2)))
+#define ZIPLIST_LENGTH(zl)      (*((uint16_t*)((zl)+sizeof(uint32_t)*2))) //记录entry个数
 #define ZIPLIST_HEADER_SIZE     (sizeof(uint32_t)*2+sizeof(uint16_t))
 #define ZIPLIST_END_SIZE        (sizeof(uint8_t))
 #define ZIPLIST_ENTRY_HEAD(zl)  ((zl)+ZIPLIST_HEADER_SIZE) //指向头结点
@@ -160,11 +161,11 @@
 }
 
 typedef struct zlentry {
-    unsigned int prevrawlensize, prevrawlen;
-    unsigned int lensize, len;
-    unsigned int headersize;
-    unsigned char encoding;
-    unsigned char *p;
+    unsigned int prevrawlensize, prevrawlen;//prevrawlensize:编码前一个entry长度 prevrawlen:前一个entry长度 
+    unsigned int lensize, len;//lensize:编码数据长度所需byte(int:1,str:1/2/5) ,len:数据长度
+    unsigned int headersize; //lensize+prevrawlensize
+    unsigned char encoding;//entery编码方式
+    unsigned char *p;//指向entry首地址
 } zlentry;
 
 #define ZIPLIST_ENTRY_ZERO(zle) { \
@@ -632,6 +633,8 @@ unsigned char *__ziplistInsert(unsigned char *zl, unsigned char *p, unsigned cha
      * its prevlen field. */
     int forcelarge = 0;
     nextdiff = (p[0] != ZIP_END) ? zipPrevLenByteDiff(p,reqlen) : 0;
+	//如果插入的节点位于中间，且该节点next节点 prevlensize变小(之前5byte,现在1byte)
+	// 之后编码next prevlensize时 还是用5byte编码
     if (nextdiff == -4 && reqlen < 4) {
         nextdiff = 0;
         forcelarge = 1;
@@ -648,9 +651,10 @@ unsigned char *__ziplistInsert(unsigned char *zl, unsigned char *p, unsigned cha
         memmove(p+reqlen,p-nextdiff,curlen-offset-1+nextdiff);
 
         /* Encode this entry's raw length in the next entry. */
+		//next 节点(p)prevlensize变小特殊编码
         if (forcelarge)
             zipPrevEncodeLengthForceLarge(p+reqlen,reqlen);
-        else
+        else//正常编码prevlensize方式
             zipPrevEncodeLength(p+reqlen,reqlen);
 
         /* Update offset for tail */
@@ -677,7 +681,7 @@ unsigned char *__ziplistInsert(unsigned char *zl, unsigned char *p, unsigned cha
         zl = __ziplistCascadeUpdate(zl,p+reqlen);
         p = zl+offset;
     }
-
+//编码插入节点prevlen encoding context
     /* Write the entry */
     p += zipPrevEncodeLength(p,prevlen);
     p += zipEncodeLength(p,encoding,slen);
