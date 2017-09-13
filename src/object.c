@@ -93,7 +93,9 @@ robj *createStringObject(const char *ptr, size_t len) {
     else
         return createRawStringObject(ptr,len);
 }
-
+// 1 、0~10000:用共享stringobject
+// 2、 LONG_MIN~LONG_MAX: ptr
+// 3、other: stringobject
 robj *createStringObjectFromLongLong(long long value) {
     robj *o;
     if (value >= 0 && value < OBJ_SHARED_INTEGERS) {
@@ -117,6 +119,7 @@ robj *createStringObjectFromLongLong(long long value) {
  * and the output of snprintf() is not modified.
  *
  * The 'humanfriendly' option is used for INCRBYFLOAT and HINCRBYFLOAT. */
+ //humanfriendly: =0，用指数表示
 robj *createStringObjectFromLongDouble(long double value, int humanfriendly) {
     char buf[256];
     int len;
@@ -441,6 +444,7 @@ robj *tryObjectEncoding(robj *o) {
 
 /* Get a decoded version of an encoded object (returned as a new object).
  * If the object is already raw-encoded just increment the ref count. */
+ //LONG_MIN 到LONG_MAX之间的long用OBJ_ENCODING_INT编码，改为文本形式编码
 robj *getDecodedObject(robj *o) {
     robj *dec;
 
@@ -469,13 +473,14 @@ robj *getDecodedObject(robj *o) {
 
 #define REDIS_COMPARE_BINARY (1<<0)
 #define REDIS_COMPARE_COLL (1<<1)
-
+//比较string大小
 int compareStringObjectsWithFlags(robj *a, robj *b, int flags) {
     serverAssertWithInfo(NULL,a,a->type == OBJ_STRING && b->type == OBJ_STRING);
     char bufa[128], bufb[128], *astr, *bstr;
     size_t alen, blen, minlen;
 
     if (a == b) return 0;
+//如果OBJ_ENCODING_INT编码，获取文本形式比较
     if (sdsEncodedObject(a)) {
         astr = a->ptr;
         alen = sdslen(astr);
@@ -503,6 +508,7 @@ int compareStringObjectsWithFlags(robj *a, robj *b, int flags) {
 }
 
 /* Wrapper for compareStringObjectsWithFlags() using binary comparison. */
+//比较二进制
 int compareStringObjects(robj *a, robj *b) {
     return compareStringObjectsWithFlags(a,b,REDIS_COMPARE_BINARY);
 }
@@ -547,6 +553,7 @@ int getDoubleFromObject(robj *o, double *target) {
         if (sdsEncodedObject(o)) {
             errno = 0;
             value = strtod(o->ptr, &eptr);
+			//开头有空格或者有其他字符
             if (isspace(((char*)o->ptr)[0]) ||
                 eptr[0] != '\0' ||
                 (errno == ERANGE &&
@@ -711,6 +718,7 @@ robj *objectCommandLookupOrReply(client *c, robj *key, robj *reply) {
 
 /* Object command allows to inspect the internals of an Redis Object.
  * Usage: OBJECT <refcount|encoding|idletime> <key> */
+ //获取对象引用计数，编码，存活期
 void objectCommand(client *c) {
     robj *o;
 

@@ -378,22 +378,22 @@ void incrDecrCommand(client *c, long long incr) {
     addReply(c,new);
     addReply(c,shared.crlf);
 }
-
+// ++
 void incrCommand(client *c) {
     incrDecrCommand(c,1);
 }
-
+// --
 void decrCommand(client *c) {
     incrDecrCommand(c,-1);
 }
-
+// +=num
 void incrbyCommand(client *c) {
     long long incr;
 
     if (getLongLongFromObjectOrReply(c, c->argv[2], &incr, NULL) != C_OK) return;
     incrDecrCommand(c,incr);
 }
-
+// -=
 void decrbyCommand(client *c) {
     long long incr;
 
