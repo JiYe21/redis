@@ -139,13 +139,17 @@
 #define ZIP_IS_STR(enc) (((enc) & ZIP_STR_MASK) < ZIP_STR_MASK)
 
 /* Utility macros */
+//head: 4byte ziplist len|4 byte tail offset|2byte data item size  
+// structure: bytes|tail|length|entry1|entry2|end
+// entry: prev node size|encoding|context
+// prev:  如果前一个节点长度小于254 则1个byte存储长度，如果大于254，1个byte存储254，另外4个byte存储长度
 #define ZIPLIST_BYTES(zl)       (*((uint32_t*)(zl)))
 #define ZIPLIST_TAIL_OFFSET(zl) (*((uint32_t*)((zl)+sizeof(uint32_t))))
 #define ZIPLIST_LENGTH(zl)      (*((uint16_t*)((zl)+sizeof(uint32_t)*2)))
 #define ZIPLIST_HEADER_SIZE     (sizeof(uint32_t)*2+sizeof(uint16_t))
 #define ZIPLIST_END_SIZE        (sizeof(uint8_t))
-#define ZIPLIST_ENTRY_HEAD(zl)  ((zl)+ZIPLIST_HEADER_SIZE)
-#define ZIPLIST_ENTRY_TAIL(zl)  ((zl)+intrev32ifbe(ZIPLIST_TAIL_OFFSET(zl)))
+#define ZIPLIST_ENTRY_HEAD(zl)  ((zl)+ZIPLIST_HEADER_SIZE) //指向头结点
+#define ZIPLIST_ENTRY_TAIL(zl)  ((zl)+intrev32ifbe(ZIPLIST_TAIL_OFFSET(zl)))//指向尾节点
 #define ZIPLIST_ENTRY_END(zl)   ((zl)+intrev32ifbe(ZIPLIST_BYTES(zl))-1)
 
 /* We know a positive increment can only be 1 because entries can only be
@@ -197,7 +201,7 @@ unsigned int zipIntSize(unsigned char encoding) {
  * the amount of bytes required to encode such a length. */
 unsigned int zipEncodeLength(unsigned char *p, unsigned char encoding, unsigned int rawlen) {
     unsigned char len = 1, buf[5];
-
+//字节数组编码
     if (ZIP_IS_STR(encoding)) {
         /* Although encoding is given it may not be set for strings,
          * so we determine it here using the raw length. */
@@ -219,7 +223,7 @@ unsigned int zipEncodeLength(unsigned char *p, unsigned char encoding, unsigned 
             buf[4] = rawlen & 0xff;
         }
     } else {
-        /* Implies integer encoding, so length is always 1. */
+        /* Implies integer encoding, so length is always 1. */ //如果是int编码，用一个字节记录int类型
         if (!p) return len;
         buf[0] = encoding;
     }
@@ -424,13 +428,14 @@ void zipEntry(unsigned char *p, zlentry *e) {
 }
 
 /* Create a new empty ziplist. */
+//创建一个空ziplist，多申请一个byte,tail end指向最后一个字节
 unsigned char *ziplistNew(void) {
     unsigned int bytes = ZIPLIST_HEADER_SIZE+1;
     unsigned char *zl = zmalloc(bytes);
     ZIPLIST_BYTES(zl) = intrev32ifbe(bytes);
     ZIPLIST_TAIL_OFFSET(zl) = intrev32ifbe(ZIPLIST_HEADER_SIZE);
     ZIPLIST_LENGTH(zl) = 0;
-    zl[bytes-1] = ZIP_END;
+    zl[bytes-1] = ZIP_END; //最后一个字节存放255
     return zl;
 }
 
@@ -584,6 +589,7 @@ unsigned char *__ziplistDelete(unsigned char *zl, unsigned char *p, unsigned int
 }
 
 /* Insert item at "p". */
+//前插
 unsigned char *__ziplistInsert(unsigned char *zl, unsigned char *p, unsigned char *s, unsigned int slen) {
     size_t curlen = intrev32ifbe(ZIPLIST_BYTES(zl)), reqlen;
     unsigned int prevlensize, prevlen = 0;
@@ -607,6 +613,7 @@ unsigned char *__ziplistInsert(unsigned char *zl, unsigned char *p, unsigned cha
 
 //检测字符串是否可以被编码为int,计算所占空间大小
     /* See if the entry can be encoded */
+
     if (zipTryEncoding(s,slen,&value,&encoding)) {
         /* 'encoding' is set to the appropriate integer encoding */
         reqlen = zipIntSize(encoding);
@@ -617,8 +624,8 @@ unsigned char *__ziplistInsert(unsigned char *zl, unsigned char *p, unsigned cha
     }
     /* We need space for both the length of the previous entry and
      * the length of the payload. */
-    reqlen += zipPrevEncodeLength(NULL,prevlen);
-    reqlen += zipEncodeLength(NULL,encoding,slen);
+    reqlen += zipPrevEncodeLength(NULL,prevlen);//存储前一个节点大小需要size
+    reqlen += zipEncodeLength(NULL,encoding,slen);//编码记录所需size
 
     /* When the insert position is not equal to the tail, we need to
      * make sure that the next entry can hold this entry's length in

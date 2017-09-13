@@ -44,9 +44,9 @@
 typedef struct quicklistNode {
     struct quicklistNode *prev;
     struct quicklistNode *next;
-    unsigned char *zl;             //ziplist
+    unsigned char *zl;             //如果没有被压缩，就指向ziplist结构，反之指向quicklistLZF结构
     unsigned int sz;             /* ziplist size in bytes */
-    unsigned int count : 16;     /* count of items in ziplist */
+    unsigned int count : 16;     /* count of items in ziplist */ //ziplist中的数据项个数
     unsigned int encoding : 2;   /* RAW==1 or LZF==2 */
     unsigned int container : 2;  /* NONE==1 or ZIPLIST==2 */
     unsigned int recompress : 1; /* was this node previous compressed? */
@@ -73,8 +73,8 @@ typedef struct quicklistLZF {
 typedef struct quicklist {
     quicklistNode *head;
     quicklistNode *tail;
-    unsigned long count;        /* total count of all entries in all ziplists */
-    unsigned int len;           /* number of quicklistNodes */
+    unsigned long count;        /* total count of all entries in all ziplists */ //列表中所有数据项的个数总和
+    unsigned int len;           /* number of quicklistNodes */ //quicklist节点的个数，即ziplist的个数
     int fill : 16;              /* fill factor for individual nodes */
     unsigned int compress : 16; /* depth of end nodes not to compress;0=off */
 } quicklist;

@@ -44,6 +44,7 @@
 #endif
 
 /* Optimization levels for size-based filling */
+//ziplist 大小，通过配置fill决定每个ziplist最大bytes -5<=fill<=-1
 static const size_t optimization_level[] = {4096, 8192, 16384, 32768, 65536};
 
 /* Maximum size in bytes of any multi-element ziplist.
@@ -397,6 +398,7 @@ REDIS_STATIC void _quicklistInsertNodeAfter(quicklist *quicklist,
     __quicklistInsertNode(quicklist, old_node, new_node, 1);
 }
 
+//计算ziplist 大小是否超过optimization_level限定
 REDIS_STATIC int
 _quicklistNodeSizeMeetsOptimizationRequirement(const size_t sz,
                                                const int fill) {
