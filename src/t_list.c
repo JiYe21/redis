@@ -137,7 +137,7 @@ robj *listTypeGet(listTypeEntry *entry) {
     }
     return value;
 }
-
+//插入到指定entry 位置
 void listTypeInsert(listTypeEntry *entry, robj *value, int where) {
     if (entry->li->encoding == OBJ_ENCODING_QUICKLIST) {
         value = getDecodedObject(value);
@@ -223,7 +223,7 @@ void pushGenericCommand(client *c, int where) {
     }
     server.dirty += pushed;
 }
-
+//list不论存在与否均插入
 void lpushCommand(client *c) {
     pushGenericCommand(c,LIST_HEAD);
 }
@@ -274,7 +274,7 @@ void pushxGenericCommand(client *c, robj *refval, robj *val, int where) {
 
     addReplyLongLong(c,listTypeLength(subject));
 }
-
+//list不存在不插入
 void lpushxCommand(client *c) {
     c->argv[2] = tryObjectEncoding(c->argv[2]);
     pushxGenericCommand(c,NULL,c->argv[2],LIST_HEAD);
@@ -284,7 +284,7 @@ void rpushxCommand(client *c) {
     c->argv[2] = tryObjectEncoding(c->argv[2]);
     pushxGenericCommand(c,NULL,c->argv[2],LIST_TAIL);
 }
-
+//LINSERT KEY_NAME BEFORE/AFTER EXISTING_VALUE NEW_VALUE 
 void linsertCommand(client *c) {
     c->argv[4] = tryObjectEncoding(c->argv[4]);
     if (strcasecmp(c->argv[2]->ptr,"after") == 0) {

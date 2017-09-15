@@ -1070,6 +1070,7 @@ quicklistIter *quicklistGetIterator(const quicklist *quicklist, int direction) {
 
 /* Initialize an iterator at a specific offset 'idx' and make the iterator
  * return nodes in 'direction' direction. */
+ //获取迭代器,类似于迭代器实现
 quicklistIter *quicklistGetIteratorAtIdx(const quicklist *quicklist,
                                          const int direction,
                                          const long long idx) {
@@ -1116,6 +1117,7 @@ void quicklistReleaseIterator(quicklistIter *iter) {
  * Returns 0 when iteration is complete or if iteration not possible.
  * If return value is 0, the contents of 'entry' are not valid.
  */
+ //根据iter获取entry，类似对迭代器 *iter操作
 int quicklistNext(quicklistIter *iter, quicklistEntry *entry) {
     initEntry(entry);
 
@@ -1134,7 +1136,8 @@ int quicklistNext(quicklistIter *iter, quicklistEntry *entry) {
 
     unsigned char *(*nextFn)(unsigned char *, unsigned char *) = NULL;
     int offset_update = 0;
-
+//首次进入一个node,iter->zi为null,返回当前iter指向entry
+// 下次再进入迭代，根据当前ziplist 的entry获取下一个entry
     if (!iter->zi) {
         /* If !zi, use current index. */
         quicklistDecompressNodeForUse(iter->current);
@@ -1159,7 +1162,7 @@ int quicklistNext(quicklistIter *iter, quicklistEntry *entry) {
         /* Populate value from existing ziplist position */
         ziplistGet(entry->zi, &entry->value, &entry->sz, &entry->longval);
         return 1;
-    } else {
+    } else {//当前ziplist 下一个entry为空，切换到下一个node
         /* We ran out of ziplist entries.
          * Pick next node, update offset, then re-run retrieval. */
         quicklistCompress(iter->quicklist, iter->current);
@@ -1224,6 +1227,7 @@ quicklist *quicklistDup(quicklist *orig) {
  *
  * Returns 1 if element found
  * Returns 0 if element not found */
+ //获取idx处 entry,idx>=0 从head->tail 遍历
 int quicklistIndex(const quicklist *quicklist, const long long idx,
                    quicklistEntry *entry) {
     quicklistNode *n;
@@ -1244,7 +1248,7 @@ int quicklistIndex(const quicklist *quicklist, const long long idx,
 
     if (index >= quicklist->count)
         return 0;
-
+//找到idx处 node
     while (likely(n)) {
         if ((accum + n->count) > index) {
             break;

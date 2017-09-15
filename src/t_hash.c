@@ -37,6 +37,7 @@
 /* Check the length of a number of objects to see if we need to convert a
  * ziplist to a real hash. Note that we only check string encoded objects
  * as their string length can be queried in constant time. */
+ //默认编码类型为OBJ_ENCODING_ZIPLIST，如果key/value 长度大于server.hash_max_ziplist_value，改为OBJ_ENCODING_HT编码
 void hashTypeTryConversion(robj *o, robj **argv, int start, int end) {
     int i;
 
@@ -62,6 +63,7 @@ void hashTypeTryObjectEncoding(robj *subject, robj **o1, robj **o2) {
 
 /* Get the value from a ziplist encoded hash, identified by field.
  * Returns -1 when the field cannot be found. */
+ //从ziplist 根据field查找value
 int hashTypeGetFromZiplist(robj *o, robj *field,
                            unsigned char **vstr,
                            unsigned int *vlen,
@@ -98,6 +100,7 @@ int hashTypeGetFromZiplist(robj *o, robj *field,
 
 /* Get the value from a hash table encoded hash, identified by field.
  * Returns -1 when the field cannot be found. */
+  //从dict 根据field查找value
 int hashTypeGetFromHashTable(robj *o, robj *field, robj **value) {
     dictEntry *de;
 
@@ -115,6 +118,7 @@ int hashTypeGetFromHashTable(robj *o, robj *field, robj **value) {
  *
  * The lower level function can prevent copy on write so it is
  * the preferred way of doing read operations. */
+ //根据field获取value
 robj *hashTypeGetObject(robj *o, robj *field) {
     robj *value = NULL;
 
@@ -226,6 +230,8 @@ int hashTypeSet(robj *o, robj *field, robj *value) {
         decrRefCount(value);
 
         /* Check if the ziplist needs to be converted to a hash table */
+		
+		//ziplist中最多存放 field不超过server.hash_max_ziplist_entries
         if (hashTypeLength(o) > server.hash_max_ziplist_entries)
             hashTypeConvert(o, OBJ_ENCODING_HT);
     } else if (o->encoding == OBJ_ENCODING_HT) {
@@ -281,6 +287,7 @@ int hashTypeDelete(robj *o, robj *field) {
 }
 
 /* Return the number of elements in a hash. */
+//获取value个数
 unsigned long hashTypeLength(robj *o) {
     unsigned long length = ULONG_MAX;
 
@@ -322,6 +329,7 @@ void hashTypeReleaseIterator(hashTypeIterator *hi) {
 
 /* Move to the next entry in the hash. Return C_OK when the next entry
  * could be found and C_ERR when the iterator reaches the end. */
+ 
 int hashTypeNext(hashTypeIterator *hi) {
     if (hi->encoding == OBJ_ENCODING_ZIPLIST) {
         unsigned char *zl;
@@ -359,6 +367,7 @@ int hashTypeNext(hashTypeIterator *hi) {
 
 /* Get the field or value at iterator cursor, for an iterator on a hash value
  * encoded as a ziplist. Prototype is similar to `hashTypeGetFromZiplist`. */
+ //从hi处获取field/value 值
 void hashTypeCurrentFromZiplist(hashTypeIterator *hi, int what,
                                 unsigned char **vstr,
                                 unsigned int *vlen,
@@ -392,6 +401,7 @@ void hashTypeCurrentFromHashTable(hashTypeIterator *hi, int what, robj **dst) {
 /* A non copy-on-write friendly but higher level version of hashTypeCurrent*()
  * that returns an object with incremented refcount (or a new object). It is up
  * to the caller to decrRefCount() the object if no reference is retained. */
+ //what:field/value  从hi处获取 field/value object
 robj *hashTypeCurrentObject(hashTypeIterator *hi, int what) {
     robj *dst;
 
@@ -414,7 +424,7 @@ robj *hashTypeCurrentObject(hashTypeIterator *hi, int what) {
     }
     return dst;
 }
-
+//拒绝覆盖一个不是OBJ_HASH key，默认采用OBJ_ENCODING_ZIPLIST编码
 robj *hashTypeLookupWriteOrCreate(client *c, robj *key) {
     robj *o = lookupKeyWrite(c->db,key);
     if (o == NULL) {
@@ -496,7 +506,7 @@ void hsetCommand(client *c) {
     notifyKeyspaceEvent(NOTIFY_HASH,"hset",c->argv[1],c->db->id);
     server.dirty++;
 }
-
+//如果field存在不更新
 void hsetnxCommand(client *c) {
     robj *o;
     if ((o = hashTypeLookupWriteOrCreate(c,c->argv[1])) == NULL) return;
@@ -534,7 +544,7 @@ void hmsetCommand(client *c) {
     notifyKeyspaceEvent(NOTIFY_HASH,"hset",c->argv[1],c->db->id);
     server.dirty++;
 }
-
+//value+=incr
 void hincrbyCommand(client *c) {
     long long value, incr, oldvalue;
     robj *o, *current, *new;
@@ -643,7 +653,7 @@ static void addHashFieldToReply(client *c, robj *o, robj *field) {
         serverPanic("Unknown hash encoding");
     }
 }
-
+//获取一个field 对应的value
 void hgetCommand(client *c) {
     robj *o;
 
@@ -653,6 +663,7 @@ void hgetCommand(client *c) {
     addHashFieldToReply(c, o, c->argv[2]);
 }
 
+//获取多个field对应的value
 void hmgetCommand(client *c) {
     robj *o;
     int i;
@@ -707,7 +718,7 @@ void hlenCommand(client *c) {
 
     addReplyLongLong(c,hashTypeLength(o));
 }
-
+//获取一个field对应value长度
 void hstrlenCommand(client *c) {
     robj *o;
 
@@ -722,7 +733,7 @@ static void addHashIteratorCursorToReply(client *c, hashTypeIterator *hi, int wh
         unsigned int vlen = UINT_MAX;
         long long vll = LLONG_MAX;
 
-        hashTypeCurrentFromZiplist(hi, what, &vstr, &vlen, &vll);
+        hashTypeCurrentFromZiplist(hi, what, &vstr, &vlen, &vll);//获取field/value值
         if (vstr) {
             addReplyBulkCBuffer(c, vstr, vlen);
         } else {
@@ -770,11 +781,11 @@ void genericHgetallCommand(client *c, int flags) {
     hashTypeReleaseIterator(hi);
     serverAssert(count == length);
 }
-
+//获取所有key
 void hkeysCommand(client *c) {
     genericHgetallCommand(c,OBJ_HASH_KEY);
 }
-
+//获取所有value
 void hvalsCommand(client *c) {
     genericHgetallCommand(c,OBJ_HASH_VALUE);
 }
@@ -790,7 +801,7 @@ void hexistsCommand(client *c) {
 
     addReply(c, hashTypeExists(o,c->argv[2]) ? shared.cone : shared.czero);
 }
-
+// hscan key cursor
 void hscanCommand(client *c) {
     robj *o;
     unsigned long cursor;

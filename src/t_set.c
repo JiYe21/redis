@@ -39,6 +39,7 @@ void sunionDiffGenericCommand(client *c, robj **setkeys, int setnum,
 /* Factory method to return a set that *can* hold "value". When the object has
  * an integer-encodable value, an intset will be returned. Otherwise a regular
  * hash table. */
+ //创建一个集合容器，如果value可用用long编码，
 robj *setTypeCreate(robj *value) {
     if (isObjectRepresentableAsLongLong(value,NULL) == C_OK)
         return createIntsetObject();

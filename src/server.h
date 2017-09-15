@@ -922,7 +922,7 @@ struct redisServer {
     int sort_bypattern;
     int sort_store;
     /* Zip structure config, see redis.conf for more information  */
-    size_t hash_max_ziplist_entries;
+    size_t hash_max_ziplist_entries;//ziplist中最多entry,每个value最大长度，如果超过范围，改为OBJ_ENCODING_HT编码方式
     size_t hash_max_ziplist_value;
     size_t set_max_intset_entries;
     size_t zset_max_ziplist_entries;
@@ -1050,7 +1050,7 @@ typedef struct {
     robj *subject;
     int encoding;
 
-    unsigned char *fptr, *vptr;
+    unsigned char *fptr, *vptr;//如果hast采用ziplist编码 fptr指向field,vptr指向value
 
     dictIterator *di;
     dictEntry *de;

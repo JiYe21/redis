@@ -79,22 +79,24 @@ typedef struct quicklist {
     unsigned int compress : 16; /* depth of end nodes not to compress;0=off */
 } quicklist;
 
+//iter在迭代过程中改变zi指向
 typedef struct quicklistIter {
     const quicklist *quicklist;
-    quicklistNode *current;
-    unsigned char *zi;
-    long offset; /* offset in current ziplist */
+    quicklistNode *current;//iter所指node
+    unsigned char *zi;//iter所指entry
+    long offset; /* offset in current ziplist */ // 当前entry在ziplist中相对entry偏移
     int direction;
 } quicklistIter;
 
+//代表ziplist中一个数据项
 typedef struct quicklistEntry {
     const quicklist *quicklist;
-    quicklistNode *node;
-    unsigned char *zi;
-    unsigned char *value;
-    long long longval;
-    unsigned int sz;
-    int offset;
+    quicklistNode *node;//当前entry所在node
+    unsigned char *zi; //指向当前entry指针
+    unsigned char *value;//entry 中value为字符串
+    long long longval;//entry中value 为long
+    unsigned int sz;//entry中value长度
+    int offset;//当前entry在ziplist中相对entry偏移
 } quicklistEntry;
 
 #define QUICKLIST_HEAD 0

@@ -31,10 +31,10 @@
 #ifndef __INTSET_H
 #define __INTSET_H
 #include <stdint.h>
-
+//相当于一个数组
 typedef struct intset {
-    uint32_t encoding;
-    uint32_t length;
+    uint32_t encoding;//元素类型
+    uint32_t length;//元素个数
     int8_t contents[];
 } intset;
 
