@@ -651,6 +651,7 @@ void syncCommand(client *c) {
         }
         /* To attach this slave, we check that it has at least all the
          * capabilities of the slave that triggered the current BGSAVE. */
+         //如果子进程正在往rdb写数据，且有个slave已经处于SLAVE_STATE_WAIT_BGSAVE_END状态，将该slave与那个slave状态同步
         if (ln && ((c->slave_capa & slave->slave_capa) == slave->slave_capa)) {
             /* Perfect, the server is already registering differences for
              * another slave. Set the right state, and copy the buffer. */
@@ -804,7 +805,7 @@ void putSlaveOnline(client *slave) {
         replicationGetSlaveName(slave));
 }
 
-
+//发送rdb给slave 发送前先发送文件大小，每次发送PROTO_IOBUF_LEN
 void sendBulkToSlave(aeEventLoop *el, int fd, void *privdata, int mask) {
     client *slave = privdata;
     UNUSED(el);
@@ -836,6 +837,7 @@ void sendBulkToSlave(aeEventLoop *el, int fd, void *privdata, int mask) {
     }
 
     /* If the preamble was already transfered, send the RDB bulk data. */
+	//发送数据前定位到发送位置
     lseek(slave->repldbfd,slave->repldboff,SEEK_SET);
     buflen = read(slave->repldbfd,buf,PROTO_IOBUF_LEN);
     if (buflen <= 0) {
@@ -863,7 +865,7 @@ void sendBulkToSlave(aeEventLoop *el, int fd, void *privdata, int mask) {
     }
 }
 
-//从rdb文件读取数据，同步到slave节点
+
 
 /* This function is called at the end of every background saving,
  * or when the replication RDB transfer strategy is modified from
@@ -879,6 +881,7 @@ void sendBulkToSlave(aeEventLoop *el, int fd, void *privdata, int mask) {
  * otherwise C_ERR is passed to the function.
  * The 'type' argument is the type of the child that terminated
  * (if it had a disk or socket target). */
+ //如果同步方式为RDB_CHILD_TYPE_DISK 从rdb文件读取数据，同步到slave节点
 void updateSlavesWaitingBgsave(int bgsaveerr, int type) {
     listNode *ln;
     int startbgsave = 0;
@@ -932,7 +935,7 @@ void updateSlavesWaitingBgsave(int bgsaveerr, int type) {
                     (unsigned long long) slave->repldbsize);
 
                 aeDeleteFileEvent(server.el,slave->fd,AE_WRITABLE);
-                if (aeCreateFileEvent(server.el, slave->fd, AE_WRITABLE, sendBulkToSlave, slave) == AE_ERR) {
+                if (aeCreateFileEvent(server.el, slave->fd, AE_WRITABLE, sendBulkToSlave, slave) == AE_ERR) {//创建write事件，同时给多个slave同步数据
                     freeClient(slave);
                     continue;
                 }

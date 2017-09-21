@@ -913,6 +913,7 @@ unsigned char *zzlLastInLexRange(unsigned char *zl, zlexrangespec *range) {
 }
 
 unsigned char *zzlFind(unsigned char *zl, robj *ele, double *score) {
+	//sptr 指向score eptr指向element
     unsigned char *eptr = ziplistIndex(zl,0), *sptr;
 
     ele = getDecodedObject(ele);

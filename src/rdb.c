@@ -571,6 +571,11 @@ int rdbLoadObjectType(rio *rdb) {
 }
 
 /* Save a Redis object. Returns -1 on error, number of bytes written on success. */
+//string: string
+//list:  ziplist num|zip_string
+//set:   len| dict_string  / inset_string
+//zset:  zip_string   / elem_num|ele|score
+//hast:  zip_string   / elem_num|key|value
 ssize_t rdbSaveObject(rio *rdb, robj *o) {
     ssize_t n = 0, nwritten = 0;
 
@@ -578,7 +583,7 @@ ssize_t rdbSaveObject(rio *rdb, robj *o) {
         /* Save a string value */
         if ((n = rdbSaveStringObject(rdb,o)) == -1) return -1;
         nwritten += n;
-    } else if (o->type == OBJ_LIST) {
+    } else if (o->type == OBJ_LIST) {//保存整个ziplist
         /* Save a list value */
         if (o->encoding == OBJ_ENCODING_QUICKLIST) {
             quicklist *ql = o->ptr;
@@ -754,7 +759,7 @@ int rdbSaveInfoAuxFields(rio *rdb) {
     return 1;
 }
 
-//将数据库中key/value 写入rdb文件
+
 /* Produces a dump of the database in RDB format sending it to the specified
  * Redis I/O channel. On success C_OK is returned, otherwise C_ERR
  * is returned and part of the output, or all the output, can be
@@ -763,6 +768,8 @@ int rdbSaveInfoAuxFields(rio *rdb) {
  * When the function returns C_ERR and if 'error' is not NULL, the
  * integer pointed by 'error' is set to the value of errno just after the I/O
  * error. */
+//产生rdb 格式数据写入rdb文件 /或者socket
+//structure:  REDIS|VERSION|RDB_OPCODE_SELECTDB|db_num|RDB_OPCODE_RESIZEDB|db_size|expire_size|data|RDB_OPCODE_EOF|cksum
 int rdbSaveRio(rio *rdb, int *error) {
     dictIterator *di = NULL;
     dictEntry *de;
@@ -772,7 +779,7 @@ int rdbSaveRio(rio *rdb, int *error) {
     uint64_t cksum;
 
     if (server.rdb_checksum)
-        rdb->update_cksum = rioGenericUpdateChecksum;
+        rdb->update_cksum = rioGenericUpdateChecksum;//及时更新cksum
     snprintf(magic,sizeof(magic),"REDIS%04d",RDB_VERSION);
     if (rdbWriteRaw(rdb,magic,9) == -1) goto werr;
     if (rdbSaveInfoAuxFields(rdb) == -1) goto werr;
@@ -785,6 +792,7 @@ int rdbSaveRio(rio *rdb, int *error) {
         if (!di) return C_ERR;
 
         /* Write the SELECT DB opcode */
+		//写入数据库id
         if (rdbSaveType(rdb,RDB_OPCODE_SELECTDB) == -1) goto werr;
         if (rdbSaveLen(rdb,j) == -1) goto werr;
 
@@ -860,6 +868,7 @@ werr: /* Write error. */
 }
 
 /* Save the DB on disk. Return C_ERR on error, C_OK on success. */
+//save cmd
 int rdbSave(char *filename) {
     char tmpfile[256];
     char cwd[MAXPATHLEN]; /* Current working dir path for error messages. */
@@ -1650,7 +1659,7 @@ int rdbSaveToSlavesSockets(void) {
         closeListeningSockets(0);
         redisSetProcTitle("redis-rdb-to-slaves");
 
-        retval = rdbSaveRioWithEOFMark(&slave_sockets,NULL);
+        retval = rdbSaveRioWithEOFMark(&slave_sockets,NULL);//通过socket将rdb形式数据发送给slave
         if (retval == C_OK && rioFlush(&slave_sockets) == 0)
             retval = C_ERR;
 
@@ -1678,6 +1687,7 @@ int rdbSaveToSlavesSockets(void) {
              * can match the report with a specific slave, and 'error' is
              * set to 0 if the replication process terminated with a success
              * or the error code if an error occurred. */
+             //报告发送状态
             void *msg = zmalloc(sizeof(uint64_t)*(1+2*numfds));
             uint64_t *len = msg;
             uint64_t *ids = len+1;
@@ -1745,8 +1755,9 @@ int rdbSaveToSlavesSockets(void) {
     }
     return C_OK; /* Unreached. */
 }
-
+// save 为阻塞命令，进程将数据保存到rdb文件，不处理任何even事件
 void saveCommand(client *c) {
+	//如果有子进程正在写
     if (server.rdb_child_pid != -1) {
         addReplyError(c,"Background save already in progress");
         return;

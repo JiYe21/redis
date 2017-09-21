@@ -318,9 +318,9 @@ typedef long long mstime_t; /* millisecond time type. */
  * In SEND_BULK and ONLINE state the slave receives new updates
  * in its output queue. In the WAIT_BGSAVE states instead the server is waiting
  * to start the next background saving in order to send updates to it. */
-#define SLAVE_STATE_WAIT_BGSAVE_START 6 /* We need to produce a new RDB file. */
-#define SLAVE_STATE_WAIT_BGSAVE_END 7 /* Waiting RDB file creation to finish. */
-#define SLAVE_STATE_SEND_BULK 8 /* Sending RDB file to slave. */
+#define SLAVE_STATE_WAIT_BGSAVE_START 6 /* We need to produce a new RDB file. */ //产生rdb文件开始
+#define SLAVE_STATE_WAIT_BGSAVE_END 7 /* Waiting RDB file creation to finish. */ //rdb文件创建成功  子进程正在往文件写入数据
+#define SLAVE_STATE_SEND_BULK 8 /* Sending RDB file to slave. */     //开始发送数据给slave
 #define SLAVE_STATE_ONLINE 9 /* RDB file transmitted, sending just updates. */
 
 /* Slave capabilities. */
@@ -588,7 +588,7 @@ typedef struct client {
     int replstate;          /* Replication state if this is a slave. */
     int repl_put_online_on_ack; /* Install slave write handler on ACK. */
     int repldbfd;           /* Replication DB file descriptor. */
-    off_t repldboff;        /* Replication DB file offset. */
+    off_t repldboff;        /* Replication DB file offset. */ //master 发送数据off
     off_t repldbsize;       /* Replication DB file size. */ //rdb文件大小
     sds replpreamble;       /* Replication DB preamble. */
     long long reploff;      /* Replication offset if this is our master. */ //从服务记录自身偏移量(收到master数据总长度)，每疵上报给master
