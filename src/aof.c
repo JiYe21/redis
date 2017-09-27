@@ -58,7 +58,7 @@ void aofClosePipes(void);
  * ------------------------------------------------------------------------- */
 
 #define AOF_RW_BUF_BLOCK_SIZE (1024*1024*10)    /* 10 MB per block */
-
+//保存aof 命令，用list串联
 typedef struct aofrwblock {
     unsigned long used, free;
     char buf[AOF_RW_BUF_BLOCK_SIZE];
@@ -788,6 +788,7 @@ int rioWriteBulkObject(rio *r, robj *obj) {
 
 /* Emit the commands needed to rebuild a list object.
  * The function returns 0 on error, 1 on success. */
+ // obj_list 每64item执行一次rpush写入
 int rewriteListObject(rio *r, robj *key, robj *o) {
     long long count = 0, items = listTypeLength(o);
 
@@ -1056,6 +1057,7 @@ int rewriteAppendOnlyFile(char *filename) {
         if (rioWriteBulkLongLong(&aof,j) == 0) goto werr;
 
         /* Iterate this DB writing every entry */
+		//以命令形式将数据写入aof文件
         while((de = dictNext(di)) != NULL) {
             sds keystr;
             robj key, *o;
@@ -1097,7 +1099,7 @@ int rewriteAppendOnlyFile(char *filename) {
                 if (rioWriteBulkLongLong(&aof,expiretime) == 0) goto werr;
             }
             /* Read some diff from the parent process from time to time. */
-            if (aof.processed_bytes > processed+1024*10) {
+            if (aof.processed_bytes > processed+1024*10) { //每次往aof文件写入10k数据尝试从父进程管道里读取新写入的数据
                 processed = aof.processed_bytes;
                 aofReadDiffFromParent();
             }
@@ -1273,6 +1275,7 @@ int rewriteAppendOnlyFileBackground(void) {
     if (server.aof_child_pid != -1 || server.rdb_child_pid != -1) return C_ERR;
     if (aofCreatePipes() != C_OK) return C_ERR;
     start = ustime();
+	//创建一个子进程将db数据写入aof文件，在子进程写入数据过程中，父进程新收到的数据通过管道发给子进程
     if ((childpid = fork()) == 0) {
         char tmpfile[256];
 

@@ -1241,7 +1241,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
          if (server.rdb_child_pid == -1 &&
              server.aof_child_pid == -1 &&
              server.aof_rewrite_perc &&
-             server.aof_current_size > server.aof_rewrite_min_size)
+             server.aof_current_size > server.aof_rewrite_min_size) //aof文件达到一定大小再次出发aof rewrite
          {
             long long base = server.aof_rewrite_base_size ?
                             server.aof_rewrite_base_size : 1;

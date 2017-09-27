@@ -112,7 +112,7 @@ static size_t rioFileWrite(rio *r, const void *buf, size_t len) {
 
     retval = fwrite(buf,len,1,r->io.file.fp);
     r->io.file.buffered += len;
-
+//当写入数据大于autosync时，刷新到硬盘
     if (r->io.file.autosync &&
         r->io.file.buffered >= r->io.file.autosync)
     {
