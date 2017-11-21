@@ -754,7 +754,7 @@ struct redisServer {
     struct redisCommand *delCommand, *multiCommand, *lpushCommand, *lpopCommand,
                         *rpopCommand, *sremCommand, *execCommand;
     /* Fields used only for stats */
-    time_t stat_starttime;          /* Server start time */
+    time_t stat_starttime;          /* Server start time */ //服务器启动时间
     long long stat_numcommands;     /* Number of processed commands */
     long long stat_numconnections;  /* Number of connections received */
     long long stat_expiredkeys;     /* Number of expired keys */

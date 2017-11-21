@@ -1066,6 +1066,7 @@ void databasesCron(void) {
  * virtual memory and aging there is to store the current time in objects at
  * every object access, and accuracy is not needed. To access a global var is
  * a lot faster than calling time(NULL) */
+ //存储时间，避免每次创建object，调用time设置时间
 void updateCachedTime(void) {
     server.unixtime = time(NULL);
     server.mstime = mstime();
@@ -1361,7 +1362,7 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
 }
 
 /* =========================== Server initialization ======================== */
-
+//初始化一些对象，避免不断分配释放内存
 void createSharedObjects(void) {
     int j;
 
@@ -1891,7 +1892,7 @@ void initServer(void) {
     server.system_memory_size = zmalloc_get_memory_size();
 
     createSharedObjects();
-    adjustOpenFilesLimit();
+    adjustOpenFilesLimit();//设置文件描述符数
     server.el = aeCreateEventLoop(server.maxclients+CONFIG_FDSET_INCR);
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
 
@@ -1958,11 +1959,12 @@ void initServer(void) {
 
     /* Create the serverCron() time event, that's our main way to process
      * background operations. */
+     //创建定时器，very important
     if(aeCreateTimeEvent(server.el, 1, serverCron, NULL, NULL) == AE_ERR) {
         serverPanic("Can't create the serverCron time event.");
         exit(1);
     }
-
+//设置accept事件回调
     /* Create an event handler for accepting new connections in TCP and Unix
      * domain sockets. */
     for (j = 0; j < server.ipfd_count; j++) {
@@ -1997,7 +1999,7 @@ void initServer(void) {
         server.maxmemory_policy = MAXMEMORY_NO_EVICTION;
     }
 
-    if (server.cluster_enabled) clusterInit();
+    if (server.cluster_enabled) clusterInit();//集群初始化
     replicationScriptCacheInit();
     scriptingInit(1);
     slowlogInit();
@@ -2292,10 +2294,11 @@ void call(client *c, int flags) {
     {
         int propagate_flags = PROPAGATE_NONE;
 
+//如果对db数据更改，同步
         /* Check if the command operated changes in the data set. If so
          * set for replication / AOF propagation. */
         if (dirty) propagate_flags |= (PROPAGATE_AOF|PROPAGATE_REPL);
-
+//query也同步
         /* If the client forced AOF / replication of the command, set
          * the flags regardless of the command effects on the data set. */
         if (c->flags & CLIENT_FORCE_REPL) propagate_flags |= PROPAGATE_REPL;
@@ -2310,7 +2313,7 @@ void call(client *c, int flags) {
         if (c->flags & CLIENT_PREVENT_AOF_PROP ||
             !(flags & CMD_CALL_PROPAGATE_AOF))
                 propagate_flags &= ~PROPAGATE_AOF;
-
+//如果有aof或者需要同步slave
         /* Call propagate() only if at least one of AOF / replication
          * propagation is needed. */
         if (propagate_flags != PROPAGATE_NONE)
@@ -3990,6 +3993,7 @@ int main(int argc, char **argv) {
     srand(time(NULL)^getpid());
     gettimeofday(&tv,NULL);
     dictSetHashFunctionSeed(tv.tv_sec^tv.tv_usec^getpid());
+	//检测是否以哨兵模式运行
     server.sentinel_mode = checkForSentinelMode(argc,argv);
     initServerConfig();
 
@@ -4034,7 +4038,7 @@ int main(int argc, char **argv) {
                 exit(1);
             }
         }
-
+//第一个参数为配置文件名
         /* First argument is the config file name? */
         if (argv[j][0] != '-' || argv[j][1] != '-') {
             configfile = argv[j];

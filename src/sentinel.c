@@ -443,6 +443,7 @@ void initSentinelConfig(void) {
 }
 
 /* Perform the Sentinel mode initialization. */
+//将通用command table清空，填充sentinel command table
 void initSentinel(void) {
     unsigned int j;
 

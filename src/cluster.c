@@ -4201,7 +4201,7 @@ void clusterCommand(client *c) {
         clusterDoBeforeSleep(CLUSTER_TODO_UPDATE_STATE|
                              CLUSTER_TODO_SAVE_CONFIG);
         addReply(c,shared.ok);
-    } else if (!strcasecmp(c->argv[1]->ptr,"replicate") && c->argc == 3) {
+    } else if (!strcasecmp(c->argv[1]->ptr,"replicate") && c->argc == 3) {//设置从节点
         /* CLUSTER REPLICATE <NODE ID> */
         clusterNode *n = clusterLookupNode(c->argv[2]->ptr);
 
