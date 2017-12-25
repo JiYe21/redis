@@ -752,6 +752,7 @@ void unlinkClient(client *c) {
     /* Certain operations must be done only if the client has an active socket.
      * If the client was already unlinked or if it's a "fake client" the
      * fd is already set to -1. */
+     //从全局客户端列表中删除client,并删除响应读写事件 关闭套接字
     if (c->fd != -1) {
         /* Remove from the list of active clients. */
         ln = listSearchKey(server.clients,c);
@@ -764,7 +765,7 @@ void unlinkClient(client *c) {
         close(c->fd);
         c->fd = -1;
     }
-
+//从 pending write列表删除客户端
     /* Remove from the list of pending writes if needed. */
     if (c->flags & CLIENT_PENDING_WRITE) {
         ln = listSearchKey(server.clients_pending_write,c);
@@ -791,6 +792,7 @@ void freeClient(client *c) {
      *
      * Note that before doing this we make sure that the client is not in
      * some unexpected state, by checking its flags. */
+     //如何客户端是master(该server是slave)
     if (server.master && c->flags & CLIENT_MASTER) {
         serverLog(LL_WARNING,"Connection with master lost.");
         if (!(c->flags & (CLIENT_CLOSE_AFTER_REPLY|

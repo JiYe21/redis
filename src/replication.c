@@ -1953,6 +1953,7 @@ void replicationCacheMaster(client *c) {
     /* Caching the master happens instead of the actual freeClient() call,
      * so make sure to adjust the replication state. This function will
      * also set server.master to NULL. */
+     
     replicationHandleMasterDisconnection();
 }
 
@@ -2263,7 +2264,7 @@ long long replicationGetSlaveOffset(void) {
 /* Replication cron function, called 1 time per second. */
 void replicationCron(void) {
     static long long replication_cron_loops = 0;
-// slave 1 超时检测
+// slave 1  握手超时检测
     /* Non blocking connection timeout? */
     if (server.masterhost &&
         (server.repl_state == REPL_STATE_CONNECTING ||
@@ -2283,13 +2284,14 @@ void replicationCron(void) {
     }
 
     /* Timed out master when we are an already connected slave? */
+	// 2 连接后超时检测
     if (server.masterhost && server.repl_state == REPL_STATE_CONNECTED &&
         (time(NULL)-server.master->lastinteraction) > server.repl_timeout)
     {
         serverLog(LL_WARNING,"MASTER timeout: no data nor PING received...");
         freeClient(server.master);
     }
-// 2 与master建立链接 每次链接断开，或者超时，将state设为 REPL_STATE_CONNECT ，下次进入cron再连接
+// 3 与master建立链接 每次链接断开，或者超时，将state设为 REPL_STATE_CONNECT ，下次进入cron再连接
     /* Check if we should connect to a MASTER */
     if (server.repl_state == REPL_STATE_CONNECT) {
         serverLog(LL_NOTICE,"Connecting to MASTER %s:%d",
@@ -2315,7 +2317,7 @@ void replicationCron(void) {
     listNode *ln;
     robj *ping_argv[1];
 	
-	// master 1 向slave发送心跳
+	// master 1 向slave发送心跳,避免slave断开与master连接
 
     /* First, send PING according to ping_slave_period. */
     if ((replication_cron_loops % server.repl_ping_slave_period) == 0) {
