@@ -934,7 +934,7 @@ void updateSlavesWaitingBgsave(int bgsaveerr, int type) {
                 slave->replpreamble = sdscatprintf(sdsempty(),"$%lld\r\n",
                     (unsigned long long) slave->repldbsize);
 
-                aeDeleteFileEvent(server.el,slave->fd,AE_WRITABLE);
+                aeDeleteFileEvent(server.el,slave->fd,AE_WRITABLE);//删除master->slave 可写事件，以防在rdb文件同步给slave文件过程中写入新命令
                 if (aeCreateFileEvent(server.el, slave->fd, AE_WRITABLE, sendBulkToSlave, slave) == AE_ERR) {//创建write事件，同时给多个slave同步数据
                     freeClient(slave);
                     continue;

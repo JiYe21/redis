@@ -1150,6 +1150,7 @@ int rewriteAppendOnlyFile(char *filename) {
     serverLog(LL_NOTICE,
         "Concatenating %.2f MB of AOF diff received from parent.",
         (double) sdslen(server.aof_child_diff) / (1024*1024));
+	//将aof后接受的请求写入文件
     if (rioWrite(&aof,server.aof_child_diff,sdslen(server.aof_child_diff)) == 0)
         goto werr;
 

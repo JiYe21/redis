@@ -828,7 +828,7 @@ struct redisServer {
     int aof_pipe_read_ack_from_parent;
     int aof_stop_sending_diff;     /* If true stop sending accumulated diffs
                                       to child process. */
-    sds aof_child_diff;             /* AOF diff accumulator child side. */
+    sds aof_child_diff;             /* AOF diff accumulator child side. */ //子进程存放在aof rewrite过程中父进程发给子进程的数据
     /* RDB persistence */
     long long dirty;                /* Changes to DB from the last save */
     long long dirty_before_bgsave;  /* Used to restore dirty on failed BGSAVE */
