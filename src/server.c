@@ -2560,6 +2560,7 @@ void closeListeningSockets(int unlink_unix_socket) {
     }
 }
 
+//关闭redis
 int prepareForShutdown(int flags) {
     int save = flags & SHUTDOWN_SAVE;
     int nosave = flags & SHUTDOWN_NOSAVE;
@@ -2568,7 +2569,9 @@ int prepareForShutdown(int flags) {
 
     /* Kill all the Lua debugger forked sessions. */
     ldbKillForkedSessions();
-
+/*
+*  1 杀死rdb子进程
+*/
     /* Kill the saving child if there is a background saving in progress.
        We want to avoid race conditions, for instance our saving child may
        overwrite the synchronous saving did by SHUTDOWN. */
@@ -2578,12 +2581,17 @@ int prepareForShutdown(int flags) {
         rdbRemoveTempFile(server.rdb_child_pid);
     }
 
+	/*
+	*  2 尝试关闭aof子进程
+	*/
+
     if (server.aof_state != AOF_OFF) {
         /* Kill the AOF saving child as the AOF we already have may be longer
          * but contains the full dataset anyway. */
         if (server.aof_child_pid != -1) {
             /* If we have AOF enabled but haven't written the AOF yet, don't
              * shutdown or else the dataset will be lost. */
+             //如果aof正在尝试写，不能关闭redis
             if (server.aof_state == AOF_WAIT_REWRITE) {
                 serverLog(LL_WARNING, "Writing initial AOF, can't exit.");
                 return C_ERR;
@@ -2596,7 +2604,9 @@ int prepareForShutdown(int flags) {
         serverLog(LL_NOTICE,"Calling fsync() on the AOF file.");
         aof_fsync(server.aof_fd);
     }
-
+/*
+*  3 保存rdb文件
+*/ 
     /* Create a new RDB file before exiting. */
     if ((server.saveparamslen > 0 && !nosave) || save) {
         serverLog(LL_NOTICE,"Saving the final RDB snapshot before exiting.");
@@ -2612,6 +2622,10 @@ int prepareForShutdown(int flags) {
         }
     }
 
+	/*
+	*  4 删除记录进程id文件
+	*/
+
     /* Remove the pid file if possible and needed. */
     if (server.daemonize || server.pidfile) {
         serverLog(LL_NOTICE,"Removing the pid file.");
@@ -2620,6 +2634,9 @@ int prepareForShutdown(int flags) {
 
     /* Best effort flush of slave output buffers, so that we hopefully
      * send them pending writes. */
+/*
+*  5 slave 缓存区的数据全部发送给slave
+*/
     flushSlavesOutputBuffers();
 
     /* Close the listening sockets. Apparently this allows faster restarts. */
@@ -3819,6 +3836,7 @@ int checkForSentinelMode(int argc, char **argv) {
 }
 
 /* Function called at startup to load RDB or AOF file in memory. */
+//当两者持久化方式都开启优先从aof中加载数据
 void loadDataFromDisk(void) {
     long long start = ustime();
     if (server.aof_state == AOF_ON) {
@@ -4080,6 +4098,7 @@ int main(int argc, char **argv) {
             exit(1);
         }
         resetServerSaveParams();
+		//加载配置文件
         loadServerConfig(configfile,options);
         sdsfree(options);
     } else {
