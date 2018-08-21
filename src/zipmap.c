@@ -43,6 +43,7 @@
 /* Memory layout of a zipmap, for the map "foo" => "bar", "hello" => "world":
  *
  * <zmlen><len>"foo"<len><free>"bar"<len>"hello"<len><free>"world"
+ * free结构第一个字节标记free长度
  *
  * <zmlen> is 1 byte length that holds the current size of the zipmap.
  * When the zipmap length is greater than or equal to 254, this value
@@ -102,6 +103,7 @@ unsigned char *zipmapNew(void) {
 }
 
 /* Decode the encoded length pointed by 'p' */
+//获取key/value长度
 static unsigned int zipmapDecodeLength(unsigned char *p) {
     unsigned int len = *p;
 
@@ -113,6 +115,7 @@ static unsigned int zipmapDecodeLength(unsigned char *p) {
 
 /* Encode the length 'l' writing it in 'p'. If p is NULL it just returns
  * the amount of bytes required to encode such a length. */
+ //计算编码len 所需字节数
 static unsigned int zipmapEncodeLength(unsigned char *p, unsigned int len) {
     if (p == NULL) {
         return ZIPMAP_LEN_BYTES(len);
@@ -135,6 +138,9 @@ static unsigned int zipmapEncodeLength(unsigned char *p, unsigned int len) {
  * If NULL is returned, and totlen is not NULL, it is set to the entire
  * size of the zimap, so that the calling function will be able to
  * reallocate the original zipmap to make room for more entries. */
+ /*1 判断key是否存在
+ * 2 计算zipmap长度
+ */
 static unsigned char *zipmapLookupRaw(unsigned char *zm, unsigned char *key, unsigned int klen, unsigned int *totlen) {
     unsigned char *p = zm+1, *k = NULL;
     unsigned int l,llen;
@@ -154,17 +160,18 @@ static unsigned char *zipmapLookupRaw(unsigned char *zm, unsigned char *key, uns
                 return p;
             }
         }
-        p += llen+l;
+        p += llen+l;//指向value
         /* Skip the value as well */
         l = zipmapDecodeLength(p);
-        p += zipmapEncodeLength(NULL,l);
+        p += zipmapEncodeLength(NULL,l);//指向free
         free = p[0];
-        p += l+1+free; /* +1 to skip the free byte */
+        p += l+1+free; /* +1 to skip the free byte *///指向下一个key
     }
     if (totlen != NULL) *totlen = (unsigned int)(p-zm)+1;
     return k;
 }
 
+//计算一个key-value所需长度     key-value 数据长度（klen+vlen) +记录数据长度所需长度+一个byte free
 static unsigned long zipmapRequiredLength(unsigned int klen, unsigned int vlen) {
     unsigned int l;
 
@@ -175,6 +182,7 @@ static unsigned long zipmapRequiredLength(unsigned int klen, unsigned int vlen) 
 }
 
 /* Return the total amount used by a key (encoded length + payload) */
+//计算编码key长度+key数据长度
 static unsigned int zipmapRawKeyLength(unsigned char *p) {
     unsigned int l = zipmapDecodeLength(p);
     return zipmapEncodeLength(NULL,l) + l;
@@ -182,6 +190,7 @@ static unsigned int zipmapRawKeyLength(unsigned char *p) {
 
 /* Return the total amount used by a value
  * (encoded length + single byte free count + payload) */
+ //计算编码value长度+value数据长度+free长度
 static unsigned int zipmapRawValueLength(unsigned char *p) {
     unsigned int l = zipmapDecodeLength(p);
     unsigned int used;
@@ -208,6 +217,7 @@ static inline unsigned char *zipmapResize(unsigned char *zm, unsigned int len) {
 /* Set key to value, creating the key if it does not already exist.
  * If 'update' is not NULL, *update is set to 1 if the key was
  * already preset, otherwise to 0. */
+ //如果修改value,修改的value可能比原来短,就用free记录空出的空间，可以留给下次使用，避免重复resize内存
 unsigned char *zipmapSet(unsigned char *zm, unsigned char *key, unsigned int klen, unsigned char *val, unsigned int vlen, int *update) {
     unsigned int zmlen, offset;
     unsigned int freelen, reqlen = zipmapRequiredLength(klen,vlen);
@@ -229,8 +239,8 @@ unsigned char *zipmapSet(unsigned char *zm, unsigned char *key, unsigned int kle
         /* Key found. Is there enough space for the new value? */
         /* Compute the total length: */
         if (update) *update = 1;
-        freelen = zipmapRawEntryLength(p);
-        if (freelen < reqlen) {
+        freelen = zipmapRawEntryLength(p);//计算整个entry长度
+        if (freelen < reqlen) {//修改value后，整个key-value需要长度比原来大
             /* Store the offset of this key within the current zipmap, so
              * it can be resized. Then, move the tail backwards so this
              * pair fits at the current position. */
@@ -250,8 +260,8 @@ unsigned char *zipmapSet(unsigned char *zm, unsigned char *key, unsigned int kle
      * be written. If there is too much free space, move the tail
      * of the zipmap a few bytes to the front and shrink the zipmap,
      * as we want zipmaps to be very space efficient. */
-    empty = freelen-reqlen;
-    if (empty >= ZIPMAP_VALUE_MAX_FREE) {
+    empty = freelen-reqlen;//修改value后，整个key-value需要长度比原来小，就有多余的
+    if (empty >= ZIPMAP_VALUE_MAX_FREE) {//空闲空间大于4字节，重新分配
         /* First, move the tail <empty> bytes to the front, then resize
          * the zipmap to be <empty> bytes smaller. */
         offset = p-zm;
