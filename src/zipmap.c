@@ -43,8 +43,8 @@
 /* Memory layout of a zipmap, for the map "foo" => "bar", "hello" => "world":
  *
  * <zmlen><len>"foo"<len><free>"bar"<len>"hello"<len><free>"world"
- * free结构第一个字节标记free长度
- *
+ * //free结构第一个字节标记free长度
+ * //zmlen记录entry个数
  * <zmlen> is 1 byte length that holds the current size of the zipmap.
  * When the zipmap length is greater than or equal to 254, this value
  * is not used and the zipmap needs to be traversed to find out the length.
@@ -234,7 +234,7 @@ unsigned char *zipmapSet(unsigned char *zm, unsigned char *key, unsigned int kle
         zmlen = zmlen+reqlen;
 
         /* Increase zipmap length (this is an insert) */
-        if (zm[0] < ZIPMAP_BIGLEN) zm[0]++;
+        if (zm[0] < ZIPMAP_BIGLEN) zm[0]++;//如果entry个数小于254，就用zm[0]记录
     } else {
         /* Key found. Is there enough space for the new value? */
         /* Compute the total length: */
@@ -261,7 +261,7 @@ unsigned char *zipmapSet(unsigned char *zm, unsigned char *key, unsigned int kle
      * of the zipmap a few bytes to the front and shrink the zipmap,
      * as we want zipmaps to be very space efficient. */
     empty = freelen-reqlen;//修改value后，整个key-value需要长度比原来小，就有多余的
-    if (empty >= ZIPMAP_VALUE_MAX_FREE) {//空闲空间大于4字节，重新分配
+    if (empty >= ZIPMAP_VALUE_MAX_FREE) {//空闲空间大于等于4字节，重新分配
         /* First, move the tail <empty> bytes to the front, then resize
          * the zipmap to be <empty> bytes smaller. */
         offset = p-zm;
@@ -270,7 +270,7 @@ unsigned char *zipmapSet(unsigned char *zm, unsigned char *key, unsigned int kle
         zm = zipmapResize(zm, zmlen);
         p = zm+offset;
         vempty = 0;
-    } else {
+    } else {//空闲空间小于4字节，记录下来
         vempty = empty;
     }
 

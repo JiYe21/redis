@@ -116,9 +116,9 @@ void quicklistSetCompressDepth(quicklist *quicklist, int compress) {
 
 #define FILL_MAX (1 << 15)
 void quicklistSetFill(quicklist *quicklist, int fill) {
-    if (fill > FILL_MAX) {
+    if (fill > FILL_MAX) {//quicklistNode中 ziplist entry个数
         fill = FILL_MAX;
-    } else if (fill < -5) {
+    } else if (fill < -5) {////quicklistNode中 ziplist 长度
         fill = -5;
     }
     quicklist->fill = fill;
@@ -418,7 +418,7 @@ _quicklistNodeSizeMeetsOptimizationRequirement(const size_t sz,
 }
 
 #define sizeMeetsSafetyLimit(sz) ((sz) <= SIZE_SAFETY_LIMIT)
-
+//判断node 中ziplist 是否超过限制，能否在当前节点插入元素
 REDIS_STATIC int _quicklistNodeAllowInsert(const quicklistNode *node,
                                            const int fill, const size_t sz) {
     if (unlikely(!node))
@@ -441,11 +441,11 @@ REDIS_STATIC int _quicklistNodeAllowInsert(const quicklistNode *node,
 
     /* new_sz overestimates if 'sz' encodes to an integer type */
     unsigned int new_sz = node->sz + sz + ziplist_overhead;
-    if (likely(_quicklistNodeSizeMeetsOptimizationRequirement(new_sz, fill)))
+    if (likely(_quicklistNodeSizeMeetsOptimizationRequirement(new_sz, fill)))//判断node 中ziplist大小是否超过限制
         return 1;
     else if (!sizeMeetsSafetyLimit(new_sz))
         return 0;
-    else if ((int)node->count < fill)
+    else if ((int)node->count < fill)//判断node 中ziplist中元素个数是否超过限制
         return 1;
     else
         return 0;
@@ -479,18 +479,19 @@ REDIS_STATIC int _quicklistNodeAllowMerge(const quicklistNode *a,
  *
  * Returns 0 if used existing head.
  * Returns 1 if new head created. */
+ //判断value是否能插入head中，因为quicklistNode有大小限制
 int quicklistPushHead(quicklist *quicklist, void *value, size_t sz) {
     quicklistNode *orig_head = quicklist->head;
     if (likely(
-            _quicklistNodeAllowInsert(quicklist->head, quicklist->fill, sz))) {
+            _quicklistNodeAllowInsert(quicklist->head, quicklist->fill, sz))) {//将value插入head节点
         quicklist->head->zl =
             ziplistPush(quicklist->head->zl, value, sz, ZIPLIST_HEAD);
         quicklistNodeUpdateSz(quicklist->head);
-    } else {
+    } else {//创建一个新节点，插入头结点之前
         quicklistNode *node = quicklistCreateNode();
         node->zl = ziplistPush(ziplistNew(), value, sz, ZIPLIST_HEAD);
 
-        quicklistNodeUpdateSz(node); //更新ziplist 大小
+        quicklistNodeUpdateSz(node); //(node)->sz大小
         _quicklistInsertNodeBefore(quicklist, quicklist->head, node);
     }
     quicklist->count++;

@@ -184,7 +184,7 @@ robj *dupStringObject(robj *o) {
         break;
     }
 }
-
+//list ∂º”√quicklist¥Ê¥¢
 robj *createQuicklistObject(void) {
     quicklist *l = quicklistCreate();
     robj *o = createObject(OBJ_LIST,l);

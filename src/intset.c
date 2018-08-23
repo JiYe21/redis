@@ -114,6 +114,7 @@ static intset *intsetResize(intset *is, uint32_t len) {
  * sets "pos" to the position of the value within the intset. Return 0 when
  * the value is not present in the intset and sets "pos" to the position
  * where "value" can be inserted. */
+ //采用二分查找查看value是否已经存在
 static uint8_t intsetSearch(intset *is, int64_t value, uint32_t *pos) {
     int min = 0, max = intrev32ifbe(is->length)-1, mid = -1;
     int64_t cur = -1;
@@ -156,11 +157,12 @@ static uint8_t intsetSearch(intset *is, int64_t value, uint32_t *pos) {
 }
 
 /* Upgrades the intset to a larger encoding and inserts the given integer. */
+//取出原来数据以新的编码方式写入，如果原来是short,现在是long long，那么就有空间浪费
 static intset *intsetUpgradeAndAdd(intset *is, int64_t value) {
     uint8_t curenc = intrev32ifbe(is->encoding);
     uint8_t newenc = _intsetValueEncoding(value);
     int length = intrev32ifbe(is->length);
-    int prepend = value < 0 ? 1 : 0;//如果value小于0，添加到inset前面
+    int prepend = value < 0 ? 1 : 0;//如果value小于0，添加到原来数据前面，否则添加到后面
 
     /* First set new encoding and resize */
     is->encoding = intrev32ifbe(newenc);
@@ -170,6 +172,7 @@ static intset *intsetUpgradeAndAdd(intset *is, int64_t value) {
      * Note that the "prepend" variable is used to make sure we have an empty
      * space at either the beginning or the end of the intset. */
      //从原来数组中按原来编码方式取出value，以新的编码方式添加到新数组中
+     // 将原来数据向后移动 从后向前写入
     while(length--)
         _intsetSet(is,length+prepend,_intsetGetEncoded(is,length,curenc));
 
@@ -204,6 +207,7 @@ static void intsetMoveTail(intset *is, uint32_t from, uint32_t to) {
 }
 
 /* Insert an integer in the intset */
+//inset 数据按从小到大插入
 intset *intsetAdd(intset *is, int64_t value, uint8_t *success) {
     uint8_t valenc = _intsetValueEncoding(value);
     uint32_t pos;
@@ -212,6 +216,7 @@ intset *intsetAdd(intset *is, int64_t value, uint8_t *success) {
     /* Upgrade encoding if necessary. If we need to upgrade, we know that
      * this value should be either appended (if > 0) or prepended (if < 0),
      * because it lies outside the range of existing values. */
+     //如果编码类型需要更改，那明显新的数据比原有的数据要么多大或者都小(负数)
     if (valenc > intrev32ifbe(is->encoding)) {
         /* This always succeeds, so we don't need to curry *success. */
         return intsetUpgradeAndAdd(is,value);
