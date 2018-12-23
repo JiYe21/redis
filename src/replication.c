@@ -2264,7 +2264,7 @@ long long replicationGetSlaveOffset(void) {
 /* Replication cron function, called 1 time per second. */
 void replicationCron(void) {
     static long long replication_cron_loops = 0;
-// slave 1  握手超时检测
+// slave 1 连接: 握手超时检测
     /* Non blocking connection timeout? */
     if (server.masterhost &&
         (server.repl_state == REPL_STATE_CONNECTING ||
@@ -2274,6 +2274,7 @@ void replicationCron(void) {
         serverLog(LL_WARNING,"Timeout connecting to the MASTER...");
         cancelReplicationHandshake();
     }
+	// 2 连接后同步: 超时收到master data
 
     /* Bulk transfer I/O timeout? */
     if (server.masterhost && server.repl_state == REPL_STATE_TRANSFER &&
@@ -2284,14 +2285,14 @@ void replicationCron(void) {
     }
 
     /* Timed out master when we are an already connected slave? */
-	// 2 连接后超时检测
+	// 3 同步完成阶段:  超时收到master data/ping
     if (server.masterhost && server.repl_state == REPL_STATE_CONNECTED &&
         (time(NULL)-server.master->lastinteraction) > server.repl_timeout)
     {
         serverLog(LL_WARNING,"MASTER timeout: no data nor PING received...");
         freeClient(server.master);
     }
-// 3 与master建立链接 每次链接断开，或者超时，将state设为 REPL_STATE_CONNECT ，下次进入cron再连接
+// 4 与master建立链接 每次链接断开，或者超时，将state设为 REPL_STATE_CONNECT ，下次进入cron再连接
     /* Check if we should connect to a MASTER */
     if (server.repl_state == REPL_STATE_CONNECT) {
         serverLog(LL_NOTICE,"Connecting to MASTER %s:%d",
@@ -2305,6 +2306,7 @@ void replicationCron(void) {
     /* Send ACK to master from time to time.
      * Note that we do not send periodic acks to masters that don't
      * support PSYNC and replication offsets. */
+     //5 定时给支持psync的master发送ack报告当前数据
     if (server.masterhost && server.master &&
         !(server.master->flags & CLIENT_PRE_PSYNC))
         replicationSendAck();
@@ -2317,7 +2319,7 @@ void replicationCron(void) {
     listNode *ln;
     robj *ping_argv[1];
 	
-	// master 1 向slave发送心跳,避免slave断开与master连接
+	// master 1 定时向slave发送心跳,slave可以检测与master的连接状态
 
     /* First, send PING according to ping_slave_period. */
     if ((replication_cron_loops % server.repl_ping_slave_period) == 0) {
@@ -2333,6 +2335,7 @@ void replicationCron(void) {
      * last-io timer preventing a timeout. In this case we ignore the
      * ping period and refresh the connection once per second since certain
      * timeouts are set at a few seconds (example: PSYNC response). */
+     // 2 master 在生成rdb文件期间向slave发送\n，避免slave检测期间超时(与salve 2 呼应)
     listRewind(server.slaves,&li);
     while((ln = listNext(&li))) {
         client *slave = ln->value;
@@ -2346,7 +2349,7 @@ void replicationCron(void) {
             }
         }
     }
-
+// 3 支持psync 的master没有收到ack，断开与slave连接
     /* Disconnect timedout slaves. */
     if (listLength(server.slaves)) {
         listIter li;
@@ -2366,7 +2369,7 @@ void replicationCron(void) {
             }
         }
     }
-	// 没有任何slave节点 释放repl_backlog内存
+	// 4  没有任何slave节点 释放repl_backlog内存
 
     /* If we have no attached slaves and there is a replication backlog
      * using memory, free it after some (configured) time. */
