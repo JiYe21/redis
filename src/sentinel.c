@@ -1916,7 +1916,7 @@ void sentinelSetClientName(sentinelRedisInstance *ri, redisAsyncContext *c, char
  * one of the two links (commands and pub/sub) is missing. */
  //当前sentinel实例与所有实例(slave master other sentine)相连，订阅master/slave hello广播
 void sentinelReconnectInstance(sentinelRedisInstance *ri) {
-    if (ri->link->disconnected == 0) return;
+    if (ri->link->disconnected == 0) return;//ri实例连接正常 
     if (ri->addr->port == 0) return; /* port == 0 means invalid address. */
     instanceLink *link = ri->link;
     mstime_t now = mstime();
@@ -1924,7 +1924,7 @@ void sentinelReconnectInstance(sentinelRedisInstance *ri) {
 //如果重连时间在1s之内，不需要再次连接，等待连接结果
     if (now - ri->link->last_reconn_time < SENTINEL_PING_PERIOD) return;
     ri->link->last_reconn_time = now;
-// 1 创建与master/slave 命令link
+// 1 创建与master/slave/sentinal 命令link
     /* Commands connection. */
     if (link->cc == NULL) {
         link->cc = redisAsyncConnectBind(ri->addr->ip,ri->addr->port,NET_FIRST_BIND_ADDR);
@@ -2451,6 +2451,7 @@ cleanup:
 
 /* This is our Pub/Sub callback for the Hello channel. It's useful in order
  * to discover other sentinels attached at the same master. */
+ //用于发现监控同一master的其他sentinal
 void sentinelReceiveHelloMessages(redisAsyncContext *c, void *reply, void *privdata) {
     sentinelRedisInstance *ri = privdata;
     redisReply *r;
