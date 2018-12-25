@@ -1603,7 +1603,7 @@ void syncWithMaster(aeEventLoop *el, int fd, void *privdata, int mask) {
 
     /* Note: if PSYNC does not return WAIT_REPLY, it will take care of
      * uninstalling the read handler from the file descriptor. */
-
+//如果master 同意部分同步，至此此函数结束
     if (psync_result == PSYNC_CONTINUE) {
         serverLog(LL_NOTICE, "MASTER <-> SLAVE sync: Master accepted a Partial Resynchronization.");
         return;
@@ -1630,6 +1630,7 @@ void syncWithMaster(aeEventLoop *el, int fd, void *privdata, int mask) {
     }
 
     /* Prepare a suitable temp file for bulk transfer */
+	// 
     while(maxtries--) {
         snprintf(tmpfile,256,
             "temp-%d.%ld.rdb",(int)server.unixtime,(long int)getpid());

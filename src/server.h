@@ -880,7 +880,7 @@ struct redisServer {
     int masterport;                 /* Port of master */
     int repl_timeout;               /* Timeout after N seconds of master idle */
     client *master;     /* Client that is master for this slave */ //slave 的master客户端
-    client *cached_master; /* Cached master to be reused for PSYNC. */
+    client *cached_master; /* Cached master to be reused for PSYNC. */ //缓存master 以备部分同步
     int repl_syncio_timeout; /* Timeout for synchronous I/O calls */
     int repl_state;          /* Replication status if the instance is a slave */
     off_t repl_transfer_size; /* Size of RDB to read from master during sync. */
